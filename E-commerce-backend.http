@@ -1,0 +1,4 @@
+@E_commerce_backend_HostAddress = https://localhost:7207
+
+GET {{E_commerce_backend_HostAddress}}/
+Accept: application/json
