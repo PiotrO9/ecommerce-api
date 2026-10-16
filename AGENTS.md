@@ -6,6 +6,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 
 - `README.md` wskazuje lokalizację dokumentacji projektu.
 - `docs/protected-areas.md` wskazuje obszary wymagające osobnego potwierdzenia przed zmianą.
+- `docs/testing.md` opisuje układ projektu testowego, uruchamianie testów oraz zasady doboru scenariuszy.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 
