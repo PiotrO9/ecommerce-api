@@ -8,6 +8,11 @@ Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 - Projekt API wyklucza cały katalog `tests/` ze swoich elementów kompilacji i zawartości, ponieważ leży w katalogu głównym repozytorium.
 - Projekt testowy zawiera xUnit, uruchamiany poleceniem `dotnet test E-commerce-backend.slnx`.
 - `Examples/Calculator.cs` zawiera demonstracyjną funkcję `Add`. `Unit/CalculatorTests.cs` testuje ją bez uruchamiania API.
+- `Unit/AuthLoginTests.cs` sprawdza wystawienie chronionego ciasteczka, oba terminy sesji, limit rozmiaru i odczyt po ponownym utworzeniu Data Protection. `Unit/AuthEndpointTests.cs` sprawdza zachowanie `/me` i `/logout` z atrapą odpowiedzi Supabase, w tym odświeżenie pary tokenów bez przesunięcia terminu, błędy usługi, nieważny refresh token i dwa równoległe żądania. Testy nie wysyłają żądań do prawdziwego projektu Supabase.
+- `Unit/AuthLoginTests.cs` sprawdza także mapowanie rzeczywistego formatu odpowiedzi `invalid_credentials`; `Unit/AuthRegisterErrorTests.cs` pilnuje tego samego formatu dla `weak_password` przy rejestracji.
+- `Unit/AuthEndpointTests.cs` sprawdza również `firstName` i `lastName` w `/auth/me`: `null` przed utworzeniem profilu, zapisane wartości po jego utworzeniu oraz brak ujawnienia profilu innego UUID. Odczyt profilu jest w testach atrapą; nie sprawdzają one połączenia z prawdziwą bazą.
+- `Unit/UserProfileModelTests.cs` sprawdza mapowanie klucza głównego i obcego profilu do `auth.users`. Wygenerowany skrypt migracji został sprawdzony lokalnie; testy nie zastępują sprawdzenia migracji i uprawnień w prawdziwej bazie.
+- `Unit/ProfileEndpointTests.cs` sprawdza, że odczyt i zapis profilu bez sesji kończą się przed wywołaniem Supabase lub PostgreSQL, a zapis wymaga nagłówka chroniącego przed prostym żądaniem CSRF.
 - Funkcja demonstracyjna nie jest używana przez endpoint `GET /` i nie stanowi logiki biznesowej sklepu.
 
 ## Zasada na przyszłość

@@ -8,6 +8,11 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/protected-areas.md` wskazuje obszary wymagające osobnego potwierdzenia przed zmianą.
 - `docs/testing.md` opisuje układ projektu testowego, uruchamianie testów oraz zasady doboru scenariuszy.
 - `docs/docker.md` opisuje budowanie obrazu i uruchamianie API w kontenerze.
+- `docs/auth-implementation-plan.md` opisuje plan nauki i wdrożenia uwierzytelniania z Supabase Auth oraz EF Core.
+- `docs/user-profiles.md` opisuje powiązanie profilu aplikacji z kontem Supabase Auth przez EF Core.
+- `docs/architecture.md` daje mapę obecnego backendu i granic między API, Supabase Auth i EF Core.
+- `docs/api-contract.md` opisuje obecne trasy, żądania i odpowiedzi API.
+- `docs/database.md` opisuje schematy PostgreSQL, mapowanie EF Core i zasady migracji.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 

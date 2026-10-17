@@ -6,6 +6,8 @@ Cel: opisać najprostszy lokalny start API przez HTTPS na porcie `3100`.
 
 - `Dockerfile` buduje projekt `E-commerce-backend.csproj` na .NET 10 i uruchamia go w obrazie ASP.NET Core 10.
 - `start-docker.ps1` buduje obraz, uruchamia kontener HTTPS i mapuje port komputera `3100` na port kontenera `8443`.
+- Skrypt montuje nazwany wolumin Docker `ecommerce-backend-keys` w `/app/keys`. Aplikacja zapisuje tam klucze ASP.NET Core Data Protection, aby po ponownym uruchomieniu kontenera móc odczytać wystawione wcześniej ciasteczka logowania. Usunięcie woluminu unieważni takie ciasteczka. Dostęp do woluminu trzeba ograniczyć, bo klucze chronią sesje użytkowników.
+- Skrypt odczytuje z lokalnych .NET user-secrets `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`, zapisuje je na czas działania w tymczasowym pliku `--env-file` poza repozytorium, a po zakończeniu usuwa plik. Przed uruchomieniem trzeba skonfigurować wszystkie trzy ustawienia. Skrypt nie wpisuje sekretów do obrazu Docker.
 - Endpoint `GET /` zwraca JSON z komunikatem `API działa`.
 - `Properties/launchSettings.json` służy uruchamianiu przez `dotnet run`; Docker nie korzysta z zawartych w nim portów.
 
@@ -43,3 +45,4 @@ Skrypt tworzy certyfikat w katalogu użytkownika poza repozytorium, przekazuje g
 - Jeśli Docker zgłasza błąd połączenia z silnikiem, uruchom Docker Desktop i poczekaj, aż będzie gotowy.
 - Jeśli port `3100` jest zajęty, zatrzymaj aplikację, która go używa, przed ponownym uruchomieniem skryptu.
 - Warning o nadpisaniu `HTTP_PORTS` przez `URLS` jest oczekiwany: skrypt uruchamia HTTPS zamiast domyślnego HTTP obrazu.
+- Skrypt lokalny montuje klucze Data Protection bez dodatkowego szyfrowania kluczy na dysku. W środowisku produkcyjnym trzeba skonfigurować wspólny trwały magazyn kluczy oraz ich ochronę odpowiednią do platformy wdrożenia.
