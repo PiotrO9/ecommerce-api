@@ -63,4 +63,4 @@ Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Instruk
 
 Copyright (c) 2026 [Patryk Piotrowski](https://github.com/piotrowski-patryk) & [Piotr Ostrowski](https://github.com/PiotrO9). All rights reserved.
 
-Repozytorium nie zawiera obecnie pliku `LICENSE` określającego warunki używania kodu.
+Warunki używania kodu określa plik [LICENSE](LICENSE).
