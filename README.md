@@ -14,8 +14,8 @@ Kod i konfiguracja są źródłem prawdy, gdy opis wymaga aktualizacji. Instrukc
 
 ## Lokalny start
 
-Projekt wymaga w .NET user-secrets kluczy `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`; wartości nie umieszczaj w repozytorium. `Properties/launchSettings.json` definiuje lokalne profile `http` (`http://localhost:5294`) i `https` (`https://localhost:3100`). HTTPS uruchomisz z katalogu projektu poleceniem `dotnet run --launch-profile https`.
+Przy lokalnym uruchomieniu przez `dotnet run` ustaw w .NET user-secrets klucze `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`; wartości nie umieszczaj w repozytorium. `Properties/launchSettings.json` definiuje profile `http` (`http://localhost:5294`) i `https` (`https://localhost:3100`). HTTPS uruchomisz z katalogu projektu poleceniem `dotnet run --launch-profile https`.
 
-Na Windows backend w kontenerze uruchomisz poleceniem `.\start-docker.ps1` w PowerShell (wymagane Docker Desktop i .NET SDK). Szczegóły są w [docs/docker.md](docs/docker.md).
+Na Windows i macOS backend w kontenerze uruchomisz przez `docker compose up --build` po jednorazowym przygotowaniu `.env.local` i certyfikatu localhost. Szczegóły są w [docs/docker.md](docs/docker.md).
 
 Kompilacja i testy: `dotnet build E-commerce-backend.slnx` oraz `dotnet test E-commerce-backend.slnx`. Działające API odpowiada na `GET /`.

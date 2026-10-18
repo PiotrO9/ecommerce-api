@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+    ports:
+      - "127.0.0.1:3100:8443"
+    env_file:
+      - path: ./.env.local
+        format: raw
+    environment:
+      ASPNETCORE_URLS: "https://+:8443"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/devcert.pfx
+      DataProtection__KeysPath: /app/keys
+    volumes:
+      - ./.local/https/devcert.pfx:/https/devcert.pfx:ro
+      - ecommerce-backend-keys:/app/keys
+
+volumes:
+  ecommerce-backend-keys:

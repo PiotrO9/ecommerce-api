@@ -1,48 +1,77 @@
 # Uruchamianie backendu przez Docker
 
-Cel: opisać najprostszy lokalny start API przez HTTPS na porcie `3100`.
+Cel: opisać lokalny start API przez HTTPS na `https://localhost:3100` na Windows i macOS.
 
-## Stan potwierdzony
+## Stan potwierdzony w kodzie
 
-- `Dockerfile` buduje projekt `E-commerce-backend.csproj` na .NET 10 i uruchamia go w obrazie ASP.NET Core 10.
-- `start-docker.ps1` buduje obraz, uruchamia kontener HTTPS i mapuje port komputera `3100` na port kontenera `8443`.
-- Skrypt montuje nazwany wolumin Docker `ecommerce-backend-keys` w `/app/keys`. Aplikacja zapisuje tam klucze ASP.NET Core Data Protection, aby po ponownym uruchomieniu kontenera móc odczytać wystawione wcześniej ciasteczka logowania. Usunięcie woluminu unieważni takie ciasteczka. Dostęp do woluminu trzeba ograniczyć, bo klucze chronią sesje użytkowników.
-- Skrypt odczytuje z lokalnych .NET user-secrets `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`, zapisuje je na czas działania w tymczasowym pliku `--env-file` poza repozytorium, a po zakończeniu usuwa plik. Przed uruchomieniem trzeba skonfigurować wszystkie trzy ustawienia. Skrypt nie wpisuje sekretów do obrazu Docker.
-- Endpoint `GET /` zwraca JSON z komunikatem `API działa`.
-- `Properties/launchSettings.json` służy uruchamianiu przez `dotnet run`; Docker nie korzysta z zawartych w nim portów.
+- `Dockerfile` buduje API na .NET 10 i uruchamia je jako użytkownik bez uprawnień roota.
+- `compose.yaml` buduje ten obraz, mapuje port komputera `3100` na port HTTPS kontenera `8443`, montuje lokalny certyfikat tylko do odczytu i przekazuje ustawienia z `.env.local`.
+- `compose.yaml` montuje własny wolumin Compose w `/app/keys`. Tam ASP.NET Core Data Protection zapisuje klucze chroniące ciasteczka logowania. Zwykły restart kontenera zachowuje klucze; `docker compose down -v` usuwa wolumin i unieważnia wcześniejsze ciasteczka. Dostęp do woluminu trzeba ograniczyć.
+- `Program.cs` odczytuje `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`. W kontenerze wartości trafiają tam ze zmiennych `Supabase__Url`, `Supabase__PublishableKey` i `ConnectionStrings__SupabaseDatabase`; w konfiguracji .NET `__` oznacza `:`.
+- `.env.example` zawiera tylko wzór. Prawdziwy `.env.local` i katalog `.local/` są wykluczone z Gita i kontekstu budowy obrazu.
+- `GET /` zwraca JSON `{"message":"API działa"}`. `Properties/launchSettings.json` dotyczy `dotnet run`, nie kontenera.
 
 ## Wymagania
 
-- Windows z PowerShell i uruchomionym Docker Desktop w trybie kontenerów Linux.
-- .NET 10 SDK do przygotowania lokalnego certyfikatu HTTPS.
+- Windows lub macOS z uruchomionym Docker Desktop i kontenerami Linux.
+- Docker Compose **2.30.0 lub nowszy** (`docker compose version`). Konfiguracja używa `env_file` z `format: raw`, aby wartości z `$` nie były interpretowane przez Compose. [Dokumentacja Docker Compose](https://docs.docker.com/reference/compose-file/services/#env_file).
+- .NET 10 SDK (`dotnet --version`) do jednorazowego przygotowania lokalnego certyfikatu HTTPS.
+- Własne dane dostępu do projektu Supabase Auth i PostgreSQL. Połączenie z bazą musi działać z sieci komputera, na którym uruchamiasz Docker.
 
-## Start po sklonowaniu repozytorium
+## Pierwsze przygotowanie: ustawienia
 
-W PowerShell przejdź do katalogu projektu i uruchom:
+W katalogu projektu skopiuj `.env.example` do `.env.local`: na Windows w PowerShell `Copy-Item .env.example .env.local`, a na macOS `cp .env.example .env.local`. Następnie zastąp wszystkie wartości przykładowe:
+
+- `Supabase__Url` — adres projektu Supabase.
+- `Supabase__PublishableKey` — publishable key tego projektu.
+- `ConnectionStrings__SupabaseDatabase` — connection string PostgreSQL, w tym hasło bazy.
+- `ASPNETCORE_Kestrel__Certificates__Default__Password` — hasło, którego użyjesz przy eksporcie certyfikatu poniżej.
+
+`.env.local` jest plikiem lokalnym zawierającym hasło do bazy. Nie dodawaj go do Gita, nie wysyłaj innym osobom i nie wklejaj do zgłoszeń. Zmienne środowiskowe są tu rozwiązaniem do lokalnego developmentu; przy wdrożeniu publicznym potrzebny będzie magazyn sekretów środowiska docelowego. Nie uruchamiaj `docker compose config` bez `--quiet`, bo może wypisać wartości zmiennych.
+
+## Pierwsze przygotowanie: certyfikat localhost
+
+Certyfikat zapisujemy w `.local/https/devcert.pfx`. W poniższych poleceniach zastąp `TWOJE_HASLO_CERTYFIKATU` **dokładnie tą samą wartością**, którą wpisałeś w `.env.local`.
+
+Windows, PowerShell:
 
 ```powershell
-.\start-docker.ps1
+New-Item -ItemType Directory -Force .local/https | Out-Null
+dotnet dev-certs https -ep .local/https/devcert.pfx -p "TWOJE_HASLO_CERTYFIKATU"
+dotnet dev-certs https --trust
 ```
 
-Przy pierwszym uruchomieniu system może poprosić o zaufanie certyfikatowi deweloperskiemu. Następnie otwórz `https://localhost:3100/`. Terminal pozostanie zajęty logami aplikacji; `Ctrl+C` zatrzyma kontener.
+macOS, Terminal:
 
-## Sprawdzenie działania
-
-W drugim oknie PowerShell wyślij żądanie do API:
-
-```powershell
-Invoke-RestMethod https://localhost:3100/ | ConvertTo-Json -Compress
+```bash
+mkdir -p .local/https
+dotnet dev-certs https -ep .local/https/devcert.pfx -p 'TWOJE_HASLO_CERTYFIKATU'
+dotnet dev-certs https --trust
 ```
 
-Oczekiwana odpowiedź: `{"message":"API działa"}`. Działający kontener możesz też zobaczyć poleceniem `docker ps`.
+System może poprosić o potwierdzenie zaufania certyfikatowi. Certyfikat deweloperski służy wyłącznie do lokalnego `localhost`; nie umieszczaj go w obrazie Docker. [Microsoft Learn — HTTPS w kontenerach ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/security/docker-https?view=aspnetcore-10.0).
 
-## Certyfikat
+## Uruchomienie i sprawdzenie
 
-Skrypt tworzy certyfikat w katalogu użytkownika poza repozytorium, przekazuje go kontenerowi tylko do odczytu i nie zapisuje go w obrazie. Certyfikat deweloperski służy wyłącznie do lokalnego `localhost`; publiczne wdrożenie wymaga osobnej konfiguracji certyfikatu dla domeny. Źródło: [Microsoft Learn — HTTPS w kontenerach ASP.NET Core](https://learn.microsoft.com/en-us/aspnet/core/security/docker-https?view=aspnetcore-10.0).
+W katalogu projektu uruchom na Windows lub macOS:
+
+```text
+docker compose config --quiet
+docker compose up --build
+```
+
+Otwórz `https://localhost:3100/`. Oczekiwana odpowiedź: `{"message":"API działa"}`. `Ctrl+C` zatrzyma kontener; `docker compose down` usunie kontener i sieć, ale zachowa wolumin kluczy. Po zalogowaniu sprawdź też `/api/v1/web/auth/me` i odczyt profilu, ponieważ samo `GET /` nie sprawdza połączenia z Supabase i PostgreSQL.
 
 ## Gdy start się nie udaje
 
-- Jeśli Docker zgłasza błąd połączenia z silnikiem, uruchom Docker Desktop i poczekaj, aż będzie gotowy.
-- Jeśli port `3100` jest zajęty, zatrzymaj aplikację, która go używa, przed ponownym uruchomieniem skryptu.
-- Warning o nadpisaniu `HTTP_PORTS` przez `URLS` jest oczekiwany: skrypt uruchamia HTTPS zamiast domyślnego HTTP obrazu.
-- Skrypt lokalny montuje klucze Data Protection bez dodatkowego szyfrowania kluczy na dysku. W środowisku produkcyjnym trzeba skonfigurować wspólny trwały magazyn kluczy oraz ich ochronę odpowiednią do platformy wdrożenia.
+- Brak `.env.local` lub certyfikatu: wykonaj oba kroki pierwszego przygotowania.
+- Błąd połączenia z Docker Engine: uruchom Docker Desktop i poczekaj, aż będzie gotowy.
+- Port `3100` jest zajęty: zatrzymaj aplikację, która go używa. Profil `https` w `dotnet run` również korzysta z portu `3100`.
+- Błąd odczytu certyfikatu w kontenerze: sprawdź ścieżkę `.local/https/devcert.pfx`, zgodność hasła i uprawnienia odczytu pliku dla użytkownika aplikacji w kontenerze.
+- Odpowiedź z `GET /` nie potwierdza dostępu do Supabase ani bazy; wykonaj żądania uwierzytelnienia i profilu.
+- Warning o nadpisaniu `HTTP_PORTS` przez `URLS` jest oczekiwany: Compose uruchamia HTTPS zamiast domyślnego HTTP obrazu.
+- Lokalny wolumin Data Protection przechowuje klucze bez dodatkowego szyfrowania na dysku. Publiczne wdrożenie wymaga osobnej konfiguracji ochrony kluczy i certyfikatu domeny.
+
+## Weryfikacja na platformach
+
+Konfiguracja Compose została przygotowana dla Windows i macOS. Działanie na każdym systemie należy potwierdzić przez start kontenera, żądania HTTP i dostęp do Supabase. Wynik testów na jednym systemie nie potwierdza automatycznie wyniku na drugim.
