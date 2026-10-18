@@ -192,12 +192,11 @@ public sealed class AuthEndpointTests
         using var fixture = new Fixture(handler);
         fixture.SetCookie(DateTimeOffset.UtcNow.AddDays(1));
 
-        var rejected = await fixture.Controller.Logout(CancellationToken.None);
+        var rejected = await fixture.Controller.Logout(null, CancellationToken.None);
         Assert.Equal(403, Assert.IsType<ObjectResult>(rejected).StatusCode);
         Assert.Equal(0, handler.CallCount);
 
-        fixture.Context.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
-        var result = await fixture.Controller.Logout(CancellationToken.None);
+        var result = await fixture.Controller.Logout("XMLHttpRequest", CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         Assert.Equal("auth/v1/logout?scope=local", handler.LastPath);
@@ -212,9 +211,7 @@ public sealed class AuthEndpointTests
         var handler = new StubHandler(HttpStatusCode.ServiceUnavailable, "{}");
         using var fixture = new Fixture(handler);
         fixture.SetCookie(DateTimeOffset.UtcNow.AddDays(1));
-        fixture.Context.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
-
-        var result = await fixture.Controller.Logout(CancellationToken.None);
+        var result = await fixture.Controller.Logout("XMLHttpRequest", CancellationToken.None);
 
         Assert.Equal(503, Assert.IsType<ObjectResult>(result).StatusCode);
         Assert.True(string.IsNullOrEmpty(fixture.Context.Response.Headers.SetCookie.ToString()));
@@ -229,9 +226,7 @@ public sealed class AuthEndpointTests
             (HttpStatusCode.NoContent, ""));
         using var fixture = new Fixture(handler);
         fixture.SetCookie(DateTimeOffset.UtcNow.AddDays(1));
-        fixture.Context.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
-
-        var result = await fixture.Controller.Logout(CancellationToken.None);
+        var result = await fixture.Controller.Logout("XMLHttpRequest", CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         Assert.Equal(3, handler.CallCount);

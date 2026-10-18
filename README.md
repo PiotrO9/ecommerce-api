@@ -37,6 +37,10 @@ dotnet run --launch-profile https
 
 API będzie dostępne pod `https://localhost:3100/`; `GET /` zwraca `{"message":"API działa"}`. Profil `http` używa `http://localhost:5294`, lecz do prób logowania używaj HTTPS, ponieważ ciasteczko sesji ma flagę `Secure`.
 
+W środowisku `Development` interaktywna dokumentacja API jest dostępna pod `https://localhost:3100/swagger`, a dokument OpenAPI pod `https://localhost:3100/openapi/v1.json`. Dokument powstaje z endpointów zarejestrowanych w uruchomionej aplikacji; po dodaniu trasy przebuduj i uruchom API ponownie, a następnie odśwież Swagger UI. Szczegółowe opisy i kody odpowiedzi wymagają odpowiednich metadanych na endpointach.
+
+Przy próbach `PUT /api/v1/web/profile/me` i `POST /api/v1/web/auth/logout` w Swagger UI wpisz `XMLHttpRequest` w polu nagłówka `X-Requested-With`. Zapis profilu wymaga także sesji uzyskanej przez wcześniejsze logowanie przez HTTPS; wylogowanie zwraca `204` również bez istniejącej sesji.
+
 Możesz też uruchomić backend przez Docker Compose. Wymaga to przygotowania `.env.local` i lokalnego certyfikatu; pełna instrukcja jest w [docs/docker.md](docs/docker.md).
 
 ### Skrypty i polecenia

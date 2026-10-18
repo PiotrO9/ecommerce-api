@@ -53,10 +53,11 @@ public sealed class ProfileController(
     [HttpPut("me")]
     public async Task<IActionResult> UpdateMine(
         [FromBody] UpdateMyProfileRequest request,
+        [FromHeader(Name = "X-Requested-With")] string? requestedWith,
         CancellationToken cancellationToken)
     {
         Response.Headers.CacheControl = "no-store";
-        if (Request.Headers["X-Requested-With"] != "XMLHttpRequest")
+        if (requestedWith != "XMLHttpRequest")
         {
             return StatusCode(403, new { message = "Żądanie zostało odrzucone." });
         }

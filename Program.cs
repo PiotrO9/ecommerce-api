@@ -1,7 +1,9 @@
 using E_commerce_backend.Data;
+using E_commerce_backend.Routing;
 using E_commerce_backend.Services.Auth;
 using E_commerce_backend.Services.Profile;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,9 +53,19 @@ builder.Services.AddSingleton<AuthCookieService>();
 builder.Services.AddScoped<AuthenticatedUserService>();
 builder.Services.AddScoped<IUserProfileReader, UserProfileReader>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+    options.Conventions.Add(new RouteTokenTransformerConvention(
+        new LowercaseRouteTokenTransformer())));
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.UseSwaggerUI(options =>
+        options.SwaggerEndpoint("/openapi/v1.json", "E-commerce API v1"));
+}
 
 app.MapControllers();
 

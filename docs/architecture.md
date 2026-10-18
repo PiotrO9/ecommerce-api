@@ -5,13 +5,20 @@ Cel: dać osobie i asystentowi AI krótki punkt wejścia do obecnego kodu, jego 
 ## Stan potwierdzony w kodzie
 
 - Repozytorium zawiera API ASP.NET Core na .NET 10. `Program.cs` rejestruje kontrolery, klienta HTTP Supabase Auth, ASP.NET Core Data Protection i `AppDbContext` z Npgsql.
-- `Controllers/WebApiControllerBase.cs` ustawia prefiks tras `api/v1/web/[controller]`. `Controllers/AuthController.cs` obsługuje rejestrację, logowanie, odczyt bieżącego użytkownika i wylogowanie. `Controllers/ProfileController.cs` obsługuje profil zalogowanego użytkownika.
+- `Program.cs` generuje dokument OpenAPI z endpointów oraz udostępnia Swagger UI w środowisku `Development` pod `/swagger`; JSON jest pod `/openapi/v1.json`.
+- `Controllers/WebApiControllerBase.cs` ustawia prefiks tras `api/v1/web/[controller]`. Konwencja w `Program.cs` zamienia token nazwy kontrolera na małe litery, także w generowanym OpenAPI. `Controllers/AuthController.cs` obsługuje rejestrację, logowanie, odczyt bieżącego użytkownika i wylogowanie. `Controllers/ProfileController.cs` obsługuje profil zalogowanego użytkownika.
 - `Contracts/` zawiera modele wejściowe, `Services/Auth/` komunikację z Supabase Auth i obsługę ciasteczka, `Services/Profile/` odczyt profilu, `Entities/` modele danych, a `Data/` mapowanie EF Core i migracje.
 - `SupabaseAuthClient` wywołuje Supabase Auth przez HTTP. Supabase tworzy konto, sprawdza hasło, wystawia tokeny i zwraca dane uwierzytelnionego użytkownika. Backend nie przechowuje haseł ani nie wystawia własnych JWT.
 - Po logowaniu `AuthCookieService` zapisuje otrzymane access token i refresh token wraz ze stałym terminem sesji w jednej wartości chronionej przez Data Protection. Przeglądarka otrzymuje ciasteczko `HttpOnly; Secure; SameSite=Lax`, bez tokenów w JSON. Bez `rememberMe` termin wynosi 1 dzień od logowania, z `rememberMe` 30 dni; odświeżenie tokenów go nie przesuwa.
 - Przy chronionym żądaniu `AuthenticatedUserService` odczytuje ciasteczko i sprawdza użytkownika przez Supabase Auth. Po odrzuceniu access tokenu próbuje wymienić parę tokenów i ponawia sprawdzenie. Dopiero zweryfikowany identyfikator użytkownika jest używany do odczytu jego danych z PostgreSQL.
 - `AppDbContext` mapuje `UserProfile` do `app.user_profiles`. `auth.users` należy do Supabase; EF tylko odwołuje się do jej `id` jako klucza obcego. Schematy i uprawnienia opisuje [database.md](database.md).
 - `GET /api/v1/web/auth/me` łączy dane z Supabase Auth (`id`, `email`) z profilem aplikacji (`firstName`, `lastName`). Gdy profil nie istnieje, oba pola profilu są `null`.
+
+## Generowanie dokumentacji API
+
+`AddControllers()` i `MapControllers()` rejestrują endpointy z kontrolerów oraz atrybutów takich jak `[HttpGet]`, `[HttpPost]` i `[HttpPut]`. Konwencja `RouteTokenTransformerConvention` z `Routing/LowercaseRouteTokenTransformer.cs` zamienia wartość tokenu `[controller]` na małe litery. `AddOpenApi()` korzysta z metadanych zarejestrowanych endpointów, a `MapOpenApi()` wystawia wynik pod `/openapi/v1.json`. Swagger UI odczytuje ten dokument; oba adresy są dostępne tylko w środowisku `Development`.
+
+Po zmianie kodu endpointu trzeba przebudować i ponownie uruchomić aplikację, aby nowa wersja pojawiła się w Swagger UI. Nazwy tras i modele żądań są odkrywane automatycznie; pełne opisy odpowiedzi wymagają metadanych dodanych przy endpointach. Nagłówek `X-Requested-With` jest zadeklarowany przez `[FromHeader]` w `PUT /profile/me` i `POST /auth/logout`, dzięki czemu Swagger UI pokazuje pole do wpisania jego wartości.
 
 ## Granice i powody decyzji
 

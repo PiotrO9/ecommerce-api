@@ -190,11 +190,13 @@ namespace E_commerce_backend.Controllers
         }
 
         [HttpPost("logout")]
-        public async Task<IActionResult> Logout(CancellationToken cancellationToken)
+        public async Task<IActionResult> Logout(
+            [FromHeader(Name = "X-Requested-With")] string? requestedWith,
+            CancellationToken cancellationToken)
         {
             Response.Headers.CacheControl = "no-store";
             // Własny nagłówek wymusza preflight przy żądaniu z obcej strony.
-            if (Request.Headers["X-Requested-With"] != "XMLHttpRequest")
+            if (requestedWith != "XMLHttpRequest")
             {
                 return StatusCode(403, new { message = "Żądanie zostało odrzucone." });
             }

@@ -35,11 +35,10 @@ public sealed class ProfileEndpointTests
 
         var request = new UpdateMyProfileRequest { FirstName = "Jan", LastName = "Kowalski" };
         Assert.Equal(403, Assert.IsType<ObjectResult>(
-            await controller.UpdateMine(request, CancellationToken.None)).StatusCode);
+            await controller.UpdateMine(request, null, CancellationToken.None)).StatusCode);
 
-        context.Request.Headers["X-Requested-With"] = "XMLHttpRequest";
         Assert.IsType<UnauthorizedObjectResult>(
-            await controller.UpdateMine(request, CancellationToken.None));
+            await controller.UpdateMine(request, "XMLHttpRequest", CancellationToken.None));
     }
 
     private sealed class NeverCallHandler : HttpMessageHandler
