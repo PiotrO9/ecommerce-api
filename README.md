@@ -14,9 +14,14 @@ Do lokalnego uruchomienia potrzebujesz .NET 10 SDK oraz danych projektu Supabase
 | --- | --- |
 | `Supabase:Url` | Adres projektu Supabase. |
 | `Supabase:PublishableKey` | Klucz publikowalny projektu Supabase. |
+| `Supabase:SecretKey` | Tajny klucz Supabase do generowania linków odzyskiwania hasła, tylko na backendzie. |
+| `Mailtrap:ApiToken` | Token API Mailtrap Email Sending (Transactional). |
+| `Mailtrap:FromEmail` | Adres nadawcy Mailtrap: testowo z domeny Demo, a do wysyłki do użytkowników z własnej zweryfikowanej domeny. |
+| `Mailtrap:FromName` | Opcjonalna nazwa nadawcy; domyślnie `E-commerce`. |
+| `PasswordReset:Url` | Bazowy adres linku resetu (HTTPS, bez fragmentu). Docelowo strona frontendu; przy ręcznej próbie może to być `https://localhost:3100/`, aby odczytać token z otrzymanego linku. |
 | `ConnectionStrings:SupabaseDatabase` | Connection string PostgreSQL używany przez EF Core. |
 
-Nie zapisuj rzeczywistych wartości ani hasła do bazy w repozytorium. Aplikacja wymaga wszystkich trzech ustawień przy starcie. Lokalny profil HTTPS używa certyfikatu deweloperskiego .NET.
+Nie zapisuj rzeczywistych wartości ani hasła do bazy w repozytorium. Aplikacja wymaga tych ustawień przy starcie. Lokalny profil HTTPS używa certyfikatu deweloperskiego .NET. Dla lokalnego frontendu z HTTP potrzebny jest adres HTTPS (np. lokalny reverse proxy); endpoint resetu odrzuca URL bez HTTPS.
 
 ### Uruchomienie aplikacji
 
@@ -29,11 +34,20 @@ dotnet restore E-commerce-backend.slnx
 # 2. Zapisz własne ustawienia lokalnie (zastąp wartości przykładowe)
 dotnet user-secrets set "Supabase:Url" "https://TWOJ-PROJEKT.supabase.co"
 dotnet user-secrets set "Supabase:PublishableKey" "TWOJ_KLUCZ_PUBLIKOWALNY"
+dotnet user-secrets set "Supabase:SecretKey" "TWOJ_KLUCZ_TAJNY"
+dotnet user-secrets set "Mailtrap:ApiToken" "TWOJ_TOKEN_MAILTRAP"
+dotnet user-secrets set "Mailtrap:FromEmail" "sender@twoja-zweryfikowana-domena.pl"
+dotnet user-secrets set "Mailtrap:FromName" "E-commerce"
+dotnet user-secrets set "PasswordReset:Url" "https://twoj-frontend.pl/reset-password"
 dotnet user-secrets set "ConnectionStrings:SupabaseDatabase" "TWOJ_CONNECTION_STRING_POSTGRESQL"
 
 # 3. Uruchom API przez HTTPS
 dotnet run --launch-profile https
 ```
+
+Serwis `MailtrapEmailSender` korzysta z Transactional Email API przez `HttpClient`; nie wymaga zewnętrznego pakietu. Oficjalny [Mailtrap .NET SDK](https://github.com/mailtrap/mailtrap-dotnet) jest opcjonalną alternatywą. Pakiet jest publikowany w GitHub Packages i wymaga przy instalacji nazwy użytkownika GitHub oraz PAT z uprawnieniem `read:packages`; ten PAT jest odrębny od tokenu Mailtrap. Nie zapisuj żadnego z nich w repozytorium ani nie używaj opcji `--store-password-in-clear-text` bez świadomej zgody na jawny zapis poświadczenia w lokalnej konfiguracji NuGet.
+
+Bez własnej domeny można użyć domeny Demo Mailtrap, np. `hello@demomailtrap.co` z przykładu integracji, lecz wtedy Mailtrap wyśle wiadomość tylko na adres użyty do założenia konta Mailtrap. Ten adres musi też należeć do istniejącego użytkownika Supabase, aby przetestować reset. Do wysyłki do dowolnych użytkowników trzeba dodać własną domenę i uzyskać status `Verified` w Mailtrap. Wartość `Mailtrap:FromEmail` powinna odpowiadać nadawcy wyświetlanemu w integracji tej domeny. Kroki żądania i potwierdzenia opisuje [kontrakt API](docs/api-contract.md#reset-hasła--próba-ręczna).
 
 API będzie dostępne pod `https://localhost:3100/`; `GET /` zwraca `{"message":"API działa"}`. Profil `http` używa `http://localhost:5294`, lecz do prób logowania używaj HTTPS, ponieważ ciasteczko sesji ma flagę `Secure`.
 

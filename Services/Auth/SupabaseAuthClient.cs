@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+
 namespace E_commerce_backend.Services.Auth;
 
 public sealed class SupabaseAuthClient
@@ -58,6 +61,19 @@ public sealed class SupabaseAuthClient
         using var request = new HttpRequestMessage(HttpMethod.Post, "auth/v1/logout?scope=local");
         request.Headers.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+        return await _httpClient.SendAsync(request, cancellationToken);
+    }
+
+    public Task<HttpResponseMessage> VerifyRecoveryAsync(string tokenHash, CancellationToken cancellationToken) =>
+        _httpClient.PostAsJsonAsync("auth/v1/verify", new { token_hash = tokenHash, type = "recovery" }, cancellationToken);
+
+    public async Task<HttpResponseMessage> UpdatePasswordAsync(string accessToken, string password, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, "auth/v1/user")
+        {
+            Content = JsonContent.Create(new { password })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         return await _httpClient.SendAsync(request, cancellationToken);
     }
 }

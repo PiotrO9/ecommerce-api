@@ -13,6 +13,7 @@ Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 - `Unit/AuthEndpointTests.cs` sprawdza również `firstName` i `lastName` w `/auth/me`: `null` przed utworzeniem profilu, zapisane wartości po jego utworzeniu oraz brak ujawnienia profilu innego UUID. Odczyt profilu jest w testach atrapą; nie sprawdzają one połączenia z prawdziwą bazą.
 - `Unit/UserProfileModelTests.cs` sprawdza mapowanie klucza głównego i obcego profilu do `auth.users`. Wygenerowany skrypt migracji został sprawdzony lokalnie; testy nie zastępują sprawdzenia migracji i uprawnień w prawdziwej bazie.
 - `Unit/ProfileEndpointTests.cs` sprawdza, że odczyt i zapis profilu bez sesji kończą się przed wywołaniem Supabase lub PostgreSQL, a zapis wymaga nagłówka chroniącego przed prostym żądaniem CSRF.
+- `Unit/PasswordResetTests.cs` sprawdza wysłanie linku, nieujawnianie braku konta, kolejność weryfikacji tokenu i zmiany hasła oraz format żądania do Mailtrap. Testy używają atrap HTTP; nie potwierdzają działania konta Mailtrap ani ustawień Supabase.
 - Funkcja demonstracyjna nie jest używana przez endpoint `GET /` i nie stanowi logiki biznesowej sklepu.
 
 ## Zasada na przyszłość
