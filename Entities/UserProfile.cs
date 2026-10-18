@@ -5,4 +5,7 @@ public sealed class UserProfile
     public Guid UserId { get; set; }
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string? AvatarUrl { get; set; }
 }

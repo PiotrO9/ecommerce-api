@@ -23,6 +23,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             profile.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
             profile.Property(x => x.FirstName).HasColumnName("first_name").HasMaxLength(100).IsRequired();
             profile.Property(x => x.LastName).HasColumnName("last_name").HasMaxLength(100).IsRequired();
+            profile.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            profile.Property(x => x.UpdatedAt).HasColumnName("updated_at").HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            profile.Property(x => x.AvatarUrl).HasColumnName("avatar_url").HasColumnType("text").IsRequired(false);
             profile.HasOne<AuthUserReference>()
                 .WithOne()
                 .HasForeignKey<UserProfile>(x => x.UserId)
