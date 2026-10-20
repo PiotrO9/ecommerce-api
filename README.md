@@ -69,6 +69,7 @@ Możesz też uruchomić backend przez Docker Compose. Wymaga to przygotowania `.
 
 ## Dokumentacja
 
+- [Plan prac i postęp backendu](docs/project-direction.md) — moduły, kolejność, lista prac, statusy i decyzje do uzgodnienia.
 - [Architektura i mapa kodu](docs/architecture.md) — punkt wejścia do obecnego backendu.
 - [Kontrakt API](docs/api-contract.md) — aktualne trasy, żądania i odpowiedzi.
 - [Baza danych i EF Core](docs/database.md) — schematy, migracje i granice dostępu.

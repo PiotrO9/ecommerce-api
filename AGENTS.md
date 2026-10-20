@@ -13,6 +13,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/architecture.md` daje mapę obecnego backendu i granic między API, Supabase Auth i EF Core.
 - `docs/api-contract.md` opisuje obecne trasy, żądania i odpowiedzi API.
 - `docs/database.md` opisuje schematy PostgreSQL, mapowanie EF Core i zasady migracji.
+- `docs/project-direction.md` jest plikiem kontrolnym planu backendu: moduły, lista prac, statusy i decyzje otwarte.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 

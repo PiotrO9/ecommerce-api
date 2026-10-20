@@ -7,7 +7,7 @@ Cel: opisać lokalny start API przez HTTPS na `https://localhost:3100` na Window
 - `Dockerfile` buduje API na .NET 10 i uruchamia je jako użytkownik bez uprawnień roota.
 - `compose.yaml` buduje ten obraz, mapuje port komputera `3100` na port HTTPS kontenera `8443`, montuje lokalny certyfikat tylko do odczytu i przekazuje ustawienia z `.env.local`.
 - `compose.yaml` montuje własny wolumin Compose w `/app/keys`. Tam ASP.NET Core Data Protection zapisuje klucze chroniące ciasteczka logowania. Zwykły restart kontenera zachowuje klucze; `docker compose down -v` usuwa wolumin i unieważnia wcześniejsze ciasteczka. Dostęp do woluminu trzeba ograniczyć.
-- `Program.cs` odczytuje `Supabase:Url`, `Supabase:PublishableKey` i `ConnectionStrings:SupabaseDatabase`. W kontenerze wartości trafiają tam ze zmiennych `Supabase__Url`, `Supabase__PublishableKey` i `ConnectionStrings__SupabaseDatabase`; w konfiguracji .NET `__` oznacza `:`.
+- `Program.cs` wymaga `Supabase:Url`, `Supabase:PublishableKey`, `Supabase:SecretKey`, `ConnectionStrings:SupabaseDatabase`, `Mailtrap:ApiToken`, `Mailtrap:FromEmail` i `PasswordReset:Url`. W kontenerze klucze konfiguracji zapisuje się ze znakami `__` zamiast `:`.
 - `.env.example` zawiera tylko wzór. Prawdziwy `.env.local` i katalog `.local/` są wykluczone z Gita i kontekstu budowy obrazu.
 - `GET /` zwraca JSON `{"message":"API działa"}`. `Properties/launchSettings.json` dotyczy `dotnet run`, nie kontenera.
 
@@ -24,7 +24,12 @@ W katalogu projektu skopiuj `.env.example` do `.env.local`: na Windows w PowerSh
 
 - `Supabase__Url` — adres projektu Supabase.
 - `Supabase__PublishableKey` — publishable key tego projektu.
+- `Supabase__SecretKey` — tajny klucz używany przez backend przy resetowaniu hasła.
 - `ConnectionStrings__SupabaseDatabase` — connection string PostgreSQL, w tym hasło bazy.
+- `Mailtrap__ApiToken` — token Mailtrap Transactional Email API.
+- `Mailtrap__FromEmail` — poprawny adres nadawcy wiadomości.
+- `Mailtrap__FromName` — opcjonalna nazwa nadawcy.
+- `PasswordReset__Url` — adres HTTPS strony resetu hasła, bez fragmentu URL.
 - `ASPNETCORE_Kestrel__Certificates__Default__Password` — hasło, którego użyjesz przy eksporcie certyfikatu poniżej.
 
 `.env.local` jest plikiem lokalnym zawierającym hasło do bazy. Nie dodawaj go do Gita, nie wysyłaj innym osobom i nie wklejaj do zgłoszeń. Zmienne środowiskowe są tu rozwiązaniem do lokalnego developmentu; przy wdrożeniu publicznym potrzebny będzie magazyn sekretów środowiska docelowego. Nie uruchamiaj `docker compose config` bez `--quiet`, bo może wypisać wartości zmiennych.
