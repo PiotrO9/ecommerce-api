@@ -16,14 +16,14 @@ Cel: opisać własność schematów PostgreSQL, mapowanie EF Core i sposób bezp
 | Schemat | Obecne użycie | Właściciel zmian |
 | --- | --- | --- |
 | `auth` | `auth.users` oraz inne obiekty uwierzytelniania | Supabase Auth |
-| `app` | `user_profiles`; uzgodnione miejsce dla przyszłych tabel aplikacji | Backend i migracje EF Core |
+| `app` | `user_profiles` oraz tabele katalogu, magazynu i historii cen | Backend i migracje EF Core |
 | `public` | `__EcommerceMigrationsHistory` | EF Core dla tej jednej tabeli; nie jest miejscem profili |
 
 Umieszczenie tabeli w `app` porządkuje własność danych. **Sama nazwa schematu nie przyznaje ani nie odbiera dostępu.** Liczą się także uprawnienia PostgreSQL, RLS, konfiguracja Data API oraz kontrola właściciela zasobu w backendzie. Połączenie EF z uprawnioną rolą PostgreSQL może omijać RLS; dlatego backend filtruje operacje po zweryfikowanym `user_id` i nie ufa ID przesłanemu przez klienta.
 
-## Planowany schemat katalogu, magazynu i cen
+## Schemat katalogu, magazynu i cen
 
-Poniższe dziewięć tabel to **uzgodniony wstępny model**, bez encji i migracji w kodzie. Reguły i pytania otwarte opisują [model katalogu](catalog-model.md), [model magazynu](inventory-model.md) oraz [model cen](pricing-model.md). Nazwy kolumn są robocze.
+Poniższe dziewięć tabel ma encje, mapowanie EF Core i zastosowaną w Supabase migrację `20261022055417_AddCatalogInventoryAndPriceModels`. Historia EF została sprawdzona 22 października 2026 r.; użytkownik potwierdził widoczność tabel. Reguły i dalsze prace opisują [model katalogu](catalog-model.md), [model magazynu](inventory-model.md) oraz [model cen](pricing-model.md).
 
 ```mermaid
 flowchart LR
@@ -47,7 +47,7 @@ flowchart LR
     A -->|"1 → 0 lub więcej"| VA
 ```
 
-`image_urls*` oznacza logiczną listę zdjęć wariantu; jej fizyczny zapis w bazie pozostaje do ustalenia. `variant_stock` może nie istnieć dla wariantu; **brak rekordu nie oznacza ilości zero i blokuje zakup wariantu**. `variant_id` w tej tabeli jest unikalnym kluczem obcym, a jej własnym kluczem głównym jest `id`.
+`image_urls*` jest zapisywane jako `text[]`. `variant_stock` może nie istnieć dla wariantu; **brak rekordu nie oznacza ilości zero i będzie blokować zakup wariantu** po wdrożeniu checkoutu. `variant_id` w tej tabeli jest unikalnym kluczem obcym, a jej własnym kluczem głównym jest `id`.
 
 `variant_price_changes` przechowuje kolejne, niezmienne rekordy ceny wariantu. `base_amount` oznacza cenę podstawową, a `selling_amount` cenę oferowaną po promocji; bez promocji wartości są równe. Cena bieżąca pochodzi z ostatniego obowiązującego rekordu. Wariant bez ceny może być szkicem, ale nie może być opublikowany. Przy obliczaniu najniższej ceny z 30 dni przed obniżką uwzględnia się również ostatnią cenę obowiązującą na początku tego okresu; szczegóły i otwarte kwestie są w [modelu cen](pricing-model.md).
 
@@ -55,7 +55,7 @@ flowchart LR
 
 Produkt i wariant mają osobne statusy `Draft`, `Published` i `Hidden`. Status produktu jest nadrzędny: ukrycie produktu ukrywa wszystkie warianty bez zmiany ich statusów. Wariant może być widoczny tylko wtedy, gdy oba poziomy mają `Published`; szczegółowe reguły są w [modelu katalogu](catalog-model.md).
 
-Samo FK z wariantu do produktu nie wymusi minimum jednego wariantu na produkt. Nie zapewni również unikalnego zestawu par cech dla wariantów tego samego produktu. Obie reguły trzeba zaprojektować osobno, z uwzględnieniem równoczesnych zapisów, przed migracją.
+Samo FK z wariantu do produktu nie wymusi minimum jednego wariantu na produkt ani unikalnego zestawu par cech. Migracja zawiera odroczone wyzwalacze sprawdzające oba warunki na końcu transakcji, z blokadą wiersza produktu przy kontroli zestawów cech. Wymagają weryfikacji na PostgreSQL, zwłaszcza przy równoczesnych zapisach. Migracja włącza RLS i odbiera role Data API dostęp do nowych tabel. Nie zmienia schematu `auth`.
 
 ## Zasada przy dodawaniu kolejnej tabeli
 

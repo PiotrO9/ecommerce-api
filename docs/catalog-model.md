@@ -1,10 +1,16 @@
 # Wstępny model katalogu
 
-Cel: zebrać decyzje dotyczące produktu, wariantu, cech i kategorii oraz pokazać planowane relacje przed implementacją. Kolejność prac i statusy są w [planie backendu](project-direction.md).
+Cel: zebrać decyzje dotyczące produktu, wariantu, cech i kategorii oraz pokazać relacje i zakres ich implementacji. Kolejność prac i statusy są w [planie backendu](project-direction.md).
 
 ## Stan potwierdzony w kodzie
 
-Produkt, wariant, kategoria i ich cechy nie mają jeszcze encji, tabel ani migracji. Poniższy model jest projektem, nie opisem istniejącego schematu. Zgodnie z [zasadami bazy](database.md) przyszłe tabele aplikacji będą jawnie mapowane do schematu `app`.
+W kodzie są encje `Product`, `ProductVariant`, `AttributeKey`, `AttributePair`, `VariantAttributePair`, `Category` i `ProductCategory`, ich mapowanie EF Core oraz migracja `AddCatalogInventoryAndPriceModels`. Migracja została zastosowana w Supabase; potwierdza to historia EF `public.__EcommerceMigrationsHistory` sprawdzona 22 października 2026 r. Użytkownik potwierdził widoczność tabel w bazie. Nie ma endpointów ani operacji administracyjnych katalogu.
+
+Implementacja przyjęła limity: nazwa produktu 200 znaków, `slug` produktu i kategorii 160, SKU 100, `code` cechy 100, `display_name` klucza cechy i kategorii 120, wartość cechy 255, krótki opis 500. `slug` ma format małych liter ASCII, cyfr i łączników (`^[a-z0-9]+(-[a-z0-9]+)*$`); `slug` produktu jest globalnie unikalny, a kategorii unikalny wśród rodzeństwa. Identyfikatory są UUID nadawanymi w kodzie. `ImageUrls` to uporządkowana tablica `text[]`. Statusy zapisujemy jako `Draft`, `Published` i `Hidden`.
+
+Migracja zawiera ograniczenia FK, UNIQUE i CHECK, dwa częściowe indeksy kategorii, wyzwalacz zapobiegający cyklom drzewa, odroczone kontrole minimum jednego wariantu i unikalnego zestawu par cech w obrębie produktu oraz automatyczne aktualizowanie `updated_at`. `AttributeKey.Code` jest przy przypisaniu przycinany i zamieniany na małe litery. RLS i odebranie uprawnień ról Data API odpowiadają dotychczasowemu wzorcowi tabeli profilu. Migracja jest zastosowana, ale zachowanie tych zabezpieczeń wymaga osobnych testów na PostgreSQL.
+
+W kodzie **nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy, odczytu produktów z kategorią i jej potomkami ani walidacji warunków publikacji (kategoria, opublikowany wariant i jego bieżąca cena). Pozostają zadaniami warstwy aplikacyjnej.
 
 ## Ustalenia koncepcyjne
 
@@ -47,7 +53,7 @@ Wariant bez ceny może pozostać `Draft`, ale przed zmianą na `Published` musi 
 
 ### Klucze, wartości i przypisania
 
-| Planowana tabela `app` | Pola i ograniczenia | Rola |
+| Tabela `app` | Pola i ograniczenia | Rola |
 | --- | --- | --- |
 | `attribute_keys` | `id uuid` PK; `code` UNIQUE; `display_name` | Wspólny słownik kluczy cech. `code=kolor` to kod techniczny, `display_name=Kolor` to **nazwa wyświetlana klucza**. |
 | `attribute_pairs` | `id uuid` PK; `attribute_key_id uuid` FK; `value`; `created_at`, `updated_at`; UNIQUE (`attribute_key_id`, `value`) | Wspólny słownik par, np. `kolor=czerwony`. Daty dotyczą pary, a nie jej przypisania do wariantu. |
@@ -65,7 +71,7 @@ Produkt może należeć do **wielu kategorii**. Kategorie tworzą drzewo o dowol
 
 Przy pobieraniu produktów z kategorii uwzględniamy produkty przypisane **bezpośrednio do niej oraz do wszystkich jej podkategorii**, niezależnie od głębokości drzewa. Przykład: zapytanie o kategorię `Mężczyzna` obejmuje także produkty przypisane do `Mężczyzna → T-shirt` i `Mężczyzna → T-shirt → T-shirty bez rękawa`. Przypisania w `product_categories` pozostają bezpośrednie; nie trzeba dopisywać produktu do każdego przodka. Produkt przypisany do kilku pasujących kategorii występuje w wyniku tylko raz. Źródło: decyzja właściciela projektu z 22 października 2026 r.
 
-| Planowana tabela `app` | Robocze pola | Rola |
+| Tabela `app` | Pola | Rola |
 | --- | --- | --- |
 | `categories` | `id uuid` PK; `display_name`; `slug`; `parent_id uuid` NULL FK → `categories.id`; `created_at`, `updated_at` (UTC) | Węzeł drzewa kategorii; `display_name` to nazwa widoczna dla użytkownika, a `parent_id = NULL` oznacza kategorię główną. `slug` jest unikalny wśród kategorii mających tego samego rodzica, również wśród kategorii głównych. |
 | `product_categories` | `product_id uuid` FK → `products.id`; `category_id uuid` FK → `categories.id`; PK (`product_id`, `category_id`) | Przypisanie produktu do kategorii bez duplikowania tej samej pary. |
@@ -82,7 +88,7 @@ Można przenieść kategorię przez zmianę `ParentId`, jeśli nowy rodzic nie j
 - Klucz obcy `parent_id` wskazuje istniejącą kategorię; ograniczenie `CHECK` blokuje `parent_id = id`. Usuwanie rodzica z podkategoriami blokuje relacja w bazie. Sam `CHECK` nie wykryje dłuższego cyklu.
 - Każde przeniesienie kategorii przebiega w transakcji `READ COMMITTED`: backend najpierw osobnym poleceniem bierze wspólną dla zmian drzewa blokadę transakcyjną, następnie zapytaniem rekurencyjnym sprawdza, czy nowy rodzic nie jest potomkiem przenoszonej kategorii, i dopiero potem aktualizuje `parent_id`. Wszystkie zapisy zmieniające `parent_id` muszą korzystać z tej samej ścieżki. Blokada serializuje równoczesne przeniesienia, a odczyt po jej uzyskaniu widzi zmiany zatwierdzone przez poprzednią transakcję. [Dokumentacja PostgreSQL: blokady transakcyjne](https://www.postgresql.org/docs/current/explicit-locking.html), [izolacja transakcji](https://www.postgresql.org/docs/current/transaction-iso.html), [zapytania rekurencyjne](https://www.postgresql.org/docs/current/queries-with.html).
 
-To projekt techniczny do wdrożenia i przetestowania na rzeczywistej bazie, nie istniejące ograniczenia. Przed migracją trzeba ustalić sposób zamknięcia innych ścieżek zapisu `parent_id`, aby nie omijały kontroli cyklu, oraz przetestować równoczesne przeniesienia i zapisy `Slug`.
+Migracja zawiera wyzwalacz `check_category_parent`, który przy każdym zapisie `parent_id` bierze wspólną blokadę transakcyjną i sprawdza przodków zapytaniem rekurencyjnym. Migracja jest zastosowana w bazie, ale nie wykonano jeszcze prób wyzwalacza ani testu równoczesnych przeniesień i zapisów `Slug`.
 
 ### Schemat relacji
 
@@ -115,14 +121,14 @@ Przykład: produkt `Koszulka` ma wariant `SKU-RED-S` z parami `kolor=czerwony` i
 - `categories.parent_id` wskazuje kategorię nadrzędną; usunięcie rodzica z podkategoriami musi być zablokowane także przy równoczesnych zapisach. Przeniesienie kategorii nie może utworzyć cyklu ani powiązać jej z samą sobą; wymaga też wolnego `slug` wśród nowego rodzeństwa. `product_categories` nie może zawierać dwa razy tej samej pary produktu i kategorii.
 - Kategorii z przypisanymi produktami nie wolno usunąć. Opublikowany produkt musi zachować co najmniej jedno przypisanie także podczas usuwania lub przenoszenia przypisań; przed zmianą statusu na `Published` backend sprawdza ten warunek. `categories.slug` musi być unikalny wśród rodzeństwa, w tym korzeni drzewa.
 
-## Pytania otwarte przed migracją
+## Dalsze pytania i prace
 
-- Limity tekstów, unikalność i zmiana `Slug`, nadawanie `Id`, dozwolone przejścia między statusami oraz znaczenie `PublishedAt` przy ukryciu i ponownej publikacji produktu lub wariantu.
-- Format i normalizacja SKU oraz szczegóły normalizacji `code`, w tym obsługa białych znaków i wielkości liter.
-- Typy wartości cech, ich jednostki, normalizacja i porównywanie; ewentualne ograniczenia liczby wartości konkretnych kluczy.
-- Fizyczny zapis i kolejność `ImageUrls`, w tym adresy URL lub ścieżki w Storage.
-- Egzekwowanie minimum jednego wariantu i unikalnego zbioru par przy równoczesnych zapisach.
+- Dozwolone przejścia między statusami oraz znaczenie `PublishedAt` przy ukryciu i ponownej publikacji produktu lub wariantu.
+- Format i normalizacja SKU poza obowiązkowością i unikalnością. `code` klucza jest już przycinane i sprowadzane do małych liter.
+- Jednostki, normalizacja i porównywanie wartości cech; ewentualne ograniczenia liczby wartości konkretnych kluczy.
+- Czy `ImageUrls` będą pełnymi adresami URL, czy ścieżkami w Storage. Kolejność zachowuje tablica `text[]`.
+- Test wyzwalaczy minimum jednego wariantu i unikalnego zbioru par przy równoczesnych zapisach na PostgreSQL.
 - Czy cechy wspólne mają istnieć także na poziomie produktu i jakie jest ich pierwszeństwo wobec cech wariantu.
-- Dokładny format, normalizacja i maksymalna długość `Slug` przy implementacji; dostosowanie indeksów i walidacji do tego formatu; zamknięcie ścieżek zapisu omijających kontrolę cyklu oraz testy równoczesnych zmian.
+- Generowanie `Slug` kategorii z nazwy, odczyt produktów z poddrzewa oraz testy równoczesnych zmian drzewa na PostgreSQL.
 - Przy projektowaniu widoku: format publicznych adresów kategorii, ewentualne przekierowania oraz kolejność kategorii mających tego samego rodzica.
 - Model promocji nie jest częścią obecnych tabel katalogu. Wstępne powiązanie stanu z wariantem jest w [modelu magazynu](inventory-model.md), a cena wariantu i uzgodniona koncepcja jej historii w [modelu cen](pricing-model.md).

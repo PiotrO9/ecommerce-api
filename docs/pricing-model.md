@@ -4,7 +4,7 @@ Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, zani
 
 ## Stan potwierdzony w kodzie
 
-Backend nie ma jeszcze encji, tabeli ani operacji cenowych. Poniższy schemat jest koncepcją, nie opisem istniejącej bazy.
+Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen. Nie ma jeszcze operacji dodawania ceny, wyznaczania ceny bieżącej, obliczania najniższej ceny przed obniżką ani promocji. Weryfikacja działania wyzwalacza i zapytań na PostgreSQL pozostaje do wykonania.
 
 ## Ustalenia z właścicielem projektu
 
@@ -13,11 +13,11 @@ Backend nie ma jeszcze encji, tabeli ani operacji cenowych. Poniższy schemat je
 - Wariant bez ceny może mieć `Status=Draft`. Bieżąca cena jest obowiązkowa **przed zmianą wariantu na `Published`**. Wariant może być widoczny i sprzedawany tylko wtedy, gdy zarówno on, jak i nadrzędny produkt mają `Status=Published`; `Hidden` na produkcie ukrywa wszystkie warianty. Szczegóły reguł widoczności są w [modelu katalogu](catalog-model.md).
 - Promocje i wyliczana cena promocyjna będą modelowane osobno; nie nadpisują po prostu ceny podstawowej wariantu.
 - **Wymaganie dla całego modelu cenowego:** musi on pozwalać odtworzyć ceny, które obowiązywały przed ogłoszeniem obniżki, tak aby sklep mógł prezentować wymaganą informację o najniższej wcześniejszej cenie. Nie wolno wdrożyć edycji ceny, która zachowuje tylko bieżącą kwotę i traci historię. Dotyczy to również przyszłych cen wynikających z promocji; sama historia ceny podstawowej nie wystarczy. Podstawa zakresu informacji: [UOKiK — informacje o obniżkach cen](https://prawakonsumenta.uokik.gov.pl/prawo-do-informacji/informacje-o-obnizkach-cen/).
-- Historię cen przechowujemy jako kolejne rekordy zmian. Zmiana nie nadpisuje ani nie zamyka poprzedniego rekordu; dodaje nowy. To decyzja koncepcyjna, bez implementacji w bazie.
+- Historię cen przechowujemy jako kolejne rekordy zmian. Zmiana nie nadpisuje ani nie zamyka poprzedniego rekordu; dodaje nowy. Migracja zawiera wyzwalacz blokujący aktualizację i usuwanie zapisanych zmian, ale nie ma jeszcze operacji dodawania ceny.
 
 ## Uzgodniony wstępny schemat historii cen
 
-| Planowana tabela `app` | Robocze pola | Znaczenie |
+| Tabela `app` | Pola | Znaczenie |
 | --- | --- | --- |
 | `variant_price_changes` | `id uuid` PK; `variant_id uuid` FK → `product_variants.id`; `base_amount decimal`; `selling_amount decimal`; `currency char(3)` DEFAULT `PLN`; `effective_at` UTC; `created_at` UTC; `reason` | Jeden wiersz utrwala stan ceny wariantu od chwili `effective_at`. Nazwy pól i wartości `reason` są robocze. |
 
@@ -53,7 +53,7 @@ Według [informacji UOKiK o obniżkach](https://prawakonsumenta.uokik.gov.pl/pra
 
 1. Jakie przejścia między `Draft`, `Published` i `Hidden` dopuszczać oraz czy `PublishedAt` oznacza pierwszą czy ostatnią publikację?
 2. Czy na starcie sklep sprzedaje wyłącznie w PLN, pozostawiając pole waluty na przyszłość, czy dopuszcza równoczesne ceny w kilku walutach?
-3. Jaka jest precyzja kwoty i zasada zaokrąglania? Czy przechowujemy cenę brutto, netto, czy obie?
+3. W bazie przyjęto `numeric(18,2)`. Jaka jest zasada zaokrąglania w obliczeniach i czy przechowujemy cenę brutto, netto, czy obie?
 4. Czy zmiana ceny może być zaplanowana na przyszłość? Jak obsłużyć równoczesne zmiany ceny tego samego wariantu?
 5. Jak powiązać zmianę ceny z regułą promocji, obsłużyć nakładanie promocji oraz rabaty zależne od koszyka lub klienta? Jak niezawodnie dopisywać rekordy przy rozpoczęciu i zakończeniu promocji?
 6. Jak odtworzyć dokładne okresy publicznego oferowania wariantu, gdy produkt lub wariant jest ukrywany i ponownie publikowany?

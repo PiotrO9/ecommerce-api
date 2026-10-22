@@ -1,10 +1,10 @@
 # Wstępny model stanu magazynowego
 
-Cel: opisać powiązanie stanu magazynowego z wariantem oraz pytania, które trzeba rozstrzygnąć przed modelem checkoutu i migracją. Model produktu i wariantu jest w [modelu katalogu](catalog-model.md).
+Cel: opisać powiązanie stanu magazynowego z wariantem oraz pytania, które trzeba rozstrzygnąć przed modelem checkoutu. Model produktu i wariantu jest w [modelu katalogu](catalog-model.md).
 
 ## Stan potwierdzony w kodzie
 
-Backend nie ma jeszcze modelu, tabeli ani operacji magazynowych. Poniższe ustalenia nie są zaimplementowane.
+Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Nie ma operacji magazynowych, rezerwacji ani checkoutu; reguła blokowania zakupu bez rekordu stanu zostanie wdrożona w checkoutcie.
 
 ## Ustalenie z właścicielem projektu
 
@@ -16,7 +16,7 @@ Rekord stanu ma mieć własne `Id`, `CreatedAt` i `UpdatedAt`. `VariantId` nadal
 
 Stan jest oddzielony od danych opisowych wariantu w relacji zero albo jeden rekord stanu na wariant:
 
-| Planowana tabela `app` | Robocze pola | Znaczenie |
+| Tabela `app` | Pola | Znaczenie |
 | --- | --- | --- |
 | `variant_stock` | `id uuid` PK; `variant_id uuid` NOT NULL UNIQUE FK → `product_variants.id`; `quantity_on_hand integer`; `created_at`, `updated_at` (UTC) | Osobny identyfikator i daty rekordu stanu. UNIQUE na `variant_id` pozwala przypisać wariantowi najwyżej jeden rekord. `quantity_on_hand` roboczo oznacza liczbę fizycznie posiadanych sztuk. |
 
@@ -28,7 +28,7 @@ flowchart LR
     V -->|"1 → 0 lub 1 rekord stanu"| S["STAN WARIANTU<br/>Id PK, VariantId UNIQUE FK<br/>QuantityOnHand<br/>CreatedAt, UpdatedAt"]
 ```
 
-Oddzielna tabela pozwala zmieniać ilość niezależnie od opisu i zdjęć wariantu. To wstępny kształt do późniejszego mapowania EF Core i migracji.
+Oddzielna tabela pozwala zmieniać ilość niezależnie od opisu i zdjęć wariantu. Encja i migracja są w kodzie; działanie ograniczeń pozostaje do sprawdzenia na PostgreSQL.
 
 ## Pytania otwarte
 

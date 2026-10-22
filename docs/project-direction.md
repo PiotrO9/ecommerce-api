@@ -2,7 +2,7 @@
 
 Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postęp backendowej części projektu e-commerce. Jest to plan kontrolny, a nie opis istniejących endpointów. Faktyczny kontrakt API jest w [api-contract.md](api-contract.md), obecna architektura w [architecture.md](architecture.md), a zasady bazy w [database.md](database.md).
 
-Źródło wymagań: plan produktu przekazany przez właściciela projektu 20 października 2026 r. Podział na moduły i kolejność poniżej są propozycją organizacji prac dla dwuosobowego zespołu. Stan kodu sprawdzono 20 października 2026 r.
+Źródło wymagań: plan produktu przekazany przez właściciela projektu 20 października 2026 r. Podział na moduły i kolejność poniżej są propozycją organizacji prac dla dwuosobowego zespołu. Stan kodu sprawdzono 22 października 2026 r.
 
 ## Jak używać tego pliku
 
@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
 
-Nie ma jeszcze funkcji sklepu: produktów, wariantów, koszyka, zamówień, promocji, historii cen, magazynu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. Brak jeszcze operacji API i testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -31,13 +31,13 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **1.2 Kontrakt pierwszego widoku** | Frontend zna pola listy i szczegółów produktu oraz format błędów | Nie rozpoczęto |
 | **1.3 Hostowanie i sesja** | Uzgodnione adresy, cookies, CORS, CSRF i zasady pracy za proxy | Nie rozpoczęto |
 | **2.1 Wstępny model produktu** | Uzgodniona lista pól produktu zapisana w tym dokumencie | Gotowe — ustalone z użytkownikiem 21.10.2026 |
-| **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | Nie rozpoczęto |
-| **2.3 Model wariantu** | Uzgodniona relacja z produktem i reguły wariantów; później encja i migracja | W toku: praca koncepcyjna |
-| **2.4 Model kategorii** | Uzgodnione drzewo kategorii i przypisanie produktów; encja i migracja | W toku: koncepcja wystarcza do dalszych prac; brak implementacji |
+| **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
+| **2.3 Model wariantu** | Relacja z produktem, cechy, encje i migracja | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
+| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja zastosowana; brak operacji odczytu i zapisu |
 | **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
 | **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | Nie rozpoczęto |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | Nie rozpoczęto |
-| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: ustalono cenę per wariant, PLN i zapis kolejnych zmian; brak implementacji |
+| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: model i migracja; brak operacji zmiany oraz odczytu ceny |
 | **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | Nie rozpoczęto |
 | **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Nie rozpoczęto |
 | **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | Nie rozpoczęto |
@@ -45,7 +45,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **4.3 Ulubione** | Gość i klient mogą zapisać produkty zgodnie z ustaloną zasadą przejęcia | Nie rozpoczęto |
 | **4.4 Logowanie Google** | Konto Google prowadzi do właściwego profilu i zasobów klienta | Nie rozpoczęto |
 | **5.1 Zamówienie i checkout** | Zalogowany klient zapisuje zamówienie z ceną i wariantem z chwili zakupu | Nie rozpoczęto |
-| **5.2 Kontrola magazynu** | Równoległe zakupy i nieudana płatność nie psują stanu | W toku: ustalono stan per wariant, bez implementacji |
+| **5.2 Kontrola magazynu** | Równoległe zakupy i nieudana płatność nie psują stanu | W toku: model stanu wariantu; brak rezerwacji i kontroli zakupów |
 | **5.3 Historia zakupów** | Klient widzi tylko swoje zamówienia | Nie rozpoczęto |
 | **6.1 Tpay sandbox** | Testowa płatność bezpiecznie aktualizuje zamówienie | Nie rozpoczęto |
 | **6.2 Symulowana dostawa** | Zamówienie przechodzi przez ustalone statusy kurierskie | Nie rozpoczęto |
@@ -62,7 +62,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 
 Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 → 7.1 → 3.1 → 2.5 → 2.6 → 2.7**. Wstępne ustalenie pól produktu w **2.1** jest zakończone; implementacja pozostaje w **2.2**. Numery 7.1 i 3.1 pojawiają się przed administracyjnym zapisem oferty, bo potrzebne są uprawnienia administratora i historia cen. Próbę **0.4** wykonajcie po ustaleniu środowiska z **1.3**. Etapy **8.1** i potrzebną część **8.2** warto włączyć przed wspólnym środowiskiem testowym. Pozostałe zależności i szczegółowe prace opisują moduły niżej.
 
-**Dalsza praca koncepcyjna:** podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są już opisane. Koncepcja kategorii wystarcza na tym etapie; kolejność kategorii na jednym poziomie oraz adresy rozstrzygniemy przy widoku, a format `Slug` i zabezpieczenia przy implementacji. Najbliżej warto domknąć otwarte zasady produktu i wariantu przed migracją (2.2–2.3). Później pozostają koszyk (4.1–4.2), zamówienie z pozycjami (5.1), promocje (3.2) oraz dane dostawy i płatności (6). To kolejność rozmów i decyzji, nie deklaracja istnienia tych modeli w kodzie.
+**Najbliższy krok:** przetestować ograniczenia zastosowanej migracji na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Później pozostają koszyk (4.1–4.2), zamówienie z pozycjami (5.1), promocje (3.2) oraz dane dostawy i płatności (6).
 
 ## 0. Istniejący fundament
 
@@ -90,21 +90,23 @@ Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 
 
 ### 2.1 Wstępny model produktu — gotowe
 
-- [x] Uzgodnić wstępne pola produktu. Aktualny zestaw i jego uzasadnienie są w [modelu katalogu](catalog-model.md#produkt). Nie ma jeszcze encji ani tabeli produktu.
+- [x] Uzgodnić wstępne pola produktu. Aktualny zestaw i jego uzasadnienie są w [modelu katalogu](catalog-model.md#produkt).
 
 ### 2.2 Implementacja modelu produktu
 
-- [ ] Przed migracją doprecyzować limity tekstów, unikalność i zmianę `Slug`, sposób nadawania `Id` oraz reguły `Status` i `PublishedAt`.
-- [ ] Dodać encję produktu, mapowanie EF Core i migrację wyłącznie w schemacie aplikacji; sprawdzić SQL migracji i zasady dostępu.
-- [ ] Sprawdzić testami przyjęte reguły modelu produktu.
+- [x] Dobrać limity tekstów, format i unikalność `Slug` oraz sposób nadawania `Id`; zapisać wybory w [modelu katalogu](catalog-model.md).
+- [x] Dodać encję produktu, mapowanie EF Core i migrację wyłącznie w schemacie aplikacji; sprawdzić wygenerowany SQL i zasady dostępu.
+- [x] Zastosować migrację katalogu w Supabase; potwierdzone historią EF 22 października 2026 r.
+- [ ] Sprawdzić ograniczenia migracji na PostgreSQL, w tym minimum jednego wariantu i zapisy współbieżne.
+- [ ] Ustalić i wdrożyć przejścia `Status` oraz znaczenie `PublishedAt` przy ponownej publikacji.
 
 Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pierwszego wariantu (2.3), ponieważ zapisany produkt ma zawsze mieć co najmniej jeden wariant. Samo dodanie tabeli produktu w 2.2 nie oznacza jeszcze gotowej operacji tworzenia produktu.
 
 ### 2.3 Model wariantu
 
 - [x] Uzgodnić podstawowe pola, relację z produktem, wspólne klucze i pary cech, zasady SKU i unikalności konfiguracji. Decyzje i schemat relacji są w [modelu katalogu](catalog-model.md).
-- [ ] Domknąć pytania otwarte przed migracją, w tym typy wartości cech, zdjęcia i egzekwowanie reguł przy równoczesnych zapisach.
-- [ ] Dodać relację produktu z wariantami, mapowanie EF Core, migrację i testy reguł tej relacji.
+- [x] Przyjąć tekstowe wartości cech i tablicę `text[]` dla zdjęć; dodać encje, relacje, mapowanie EF Core, migrację i testy metadanych.
+- [ ] Sprawdzić w PostgreSQL unikalność zestawów cech i równoczesne zapisy; doprecyzować normalizację wartości cech.
 
 ### 2.4 Model kategorii
 
@@ -113,9 +115,10 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Ustalić pola `Id`, `DisplayName`, `Slug`, `ParentId`, `CreatedAt`, `UpdatedAt`; unikalność `Slug` wśród rodzeństwa; blokadę usuwania kategorii z produktami; kategorię wymaganą przed publikacją produktu.
 - [x] Ustalić wymagane `DisplayName` (1–120 znaków po przycięciu), generowanie `Slug` z nazwy z możliwością poprawienia go przed zapisem, brak automatycznej zmiany `Slug` przy zmianie nazwy oraz możliwość przeniesienia kategorii bez tworzenia cyklu i konfliktu `Slug`.
 - [x] Dopuścić ręczną zmianę zapisanego `Slug` po walidacji oraz ustalić prezentację ścieżki kategorii od korzenia do wybranego węzła.
-- [x] Przyjąć techniczny kierunek zabezpieczenia: dwa unikalne indeksy częściowe dla `Slug` oraz transakcyjną blokadę i rekurencyjne sprawdzenie przy przenoszeniu kategorii. Projekt jest w [modelu katalogu](catalog-model.md#kategorie), bez implementacji.
-- [ ] Przy implementacji ustalić dokładny format i maksymalną długość `Slug`, domknąć wszystkie ścieżki zapisu drzewa i przetestować równoczesne zmiany; przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
-- [ ] Dodać model drzewa kategorii, mapowanie EF Core, migrację i testy relacji.
+- [x] Dodać dwa unikalne indeksy częściowe dla `Slug` oraz wyzwalacz z blokadą i rekurencyjnym sprawdzeniem cyklu.
+- [x] Ustalić format i maksymalną długość `Slug`; dodać model drzewa, mapowanie EF Core, migrację i testy metadanych.
+- [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy, operacje drzewa i odczyt produktów z potomków.
+- [ ] Przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
 
 ### 2.5–2.7 Operacje katalogu
 

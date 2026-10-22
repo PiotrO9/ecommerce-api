@@ -6,6 +6,15 @@ namespace E_commerce_backend.Data;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<Product> Products => Set<Product>();
+    public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
+    public DbSet<AttributeKey> AttributeKeys => Set<AttributeKey>();
+    public DbSet<AttributePair> AttributePairs => Set<AttributePair>();
+    public DbSet<VariantAttributePair> VariantAttributePairs => Set<VariantAttributePair>();
+    public DbSet<Category> Categories => Set<Category>();
+    public DbSet<ProductCategory> ProductCategories => Set<ProductCategory>();
+    public DbSet<VariantStock> VariantStocks => Set<VariantStock>();
+    public DbSet<VariantPriceChange> VariantPriceChanges => Set<VariantPriceChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,5 +40,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 .HasForeignKey<UserProfile>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        CatalogModelConfiguration.Configure(modelBuilder);
     }
 }

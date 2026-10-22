@@ -13,6 +13,7 @@ Cel: dać osobie i asystentowi AI krótki punkt wejścia do obecnego kodu, jego 
 - Po logowaniu `AuthCookieService` zapisuje otrzymane access token i refresh token wraz ze stałym terminem sesji w jednej wartości chronionej przez Data Protection. Przeglądarka otrzymuje ciasteczko `HttpOnly; Secure; SameSite=Lax`, bez tokenów w JSON. Bez `rememberMe` termin wynosi 1 dzień od logowania, z `rememberMe` 30 dni; odświeżenie tokenów go nie przesuwa.
 - Przy chronionym żądaniu `AuthenticatedUserService` odczytuje ciasteczko i sprawdza użytkownika przez Supabase Auth. Po odrzuceniu access tokenu próbuje wymienić parę tokenów i ponawia sprawdzenie. Dopiero zweryfikowany identyfikator użytkownika jest używany do odczytu jego danych z PostgreSQL.
 - `AppDbContext` mapuje `UserProfile` do `app.user_profiles`. `auth.users` należy do Supabase; EF tylko odwołuje się do jej `id` jako klucza obcego. Schematy i uprawnienia opisuje [database.md](database.md).
+- `AppDbContext` mapuje też encje katalogu, kategorii, stanu wariantu i historii jego cen do schematu `app`. Migracja dla tych tabel jest zastosowana w Supabase; API nie ma jeszcze operacji katalogu.
 - `GET /api/v1/web/auth/me` łączy dane z Supabase Auth (`id`, `email`) z profilem aplikacji (`firstName`, `lastName`). Gdy profil nie istnieje, oba pola profilu są `null`.
 
 ## Generowanie dokumentacji API
