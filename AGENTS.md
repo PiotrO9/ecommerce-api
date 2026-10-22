@@ -14,6 +14,9 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/api-contract.md` opisuje obecne trasy, żądania i odpowiedzi API.
 - `docs/database.md` opisuje schematy PostgreSQL, mapowanie EF Core i zasady migracji.
 - `docs/project-direction.md` jest plikiem kontrolnym planu backendu: moduły, lista prac, statusy i decyzje otwarte.
+- `docs/catalog-model.md` zawiera wstępny model produktu, wariantu, cech i kategorii oraz relacje i pytania otwarte przed migracją.
+- `docs/inventory-model.md` zawiera wstępne ustalenie stanu magazynowego per wariant i otwarte reguły rezerwacji.
+- `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 
