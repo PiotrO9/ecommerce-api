@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt drzewa kategorii; nie ma jeszcze odczytu produktów, operacji zapisu katalogu ani testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu i listy produktów z poddrzewa kategorii; nie ma jeszcze pełnej listy produktów z filtrowaniem i stronicowaniem, operacji zapisu katalogu ani testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -33,11 +33,11 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **2.1 Wstępny model produktu** | Uzgodniona lista pól produktu zapisana w tym dokumencie | Gotowe — ustalone z użytkownikiem 21.10.2026 |
 | **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
 | **2.3 Model wariantu** | Relacja z produktem, cechy, encje i migracja | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
-| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja i odczyt drzewa; brak zapisu i odczytu produktów z poddrzewa |
+| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja, odczyt drzewa i produktów z poddrzewa; brak operacji zapisu |
 | **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
-| **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | Nie rozpoczęto |
+| **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | W toku: szczegóły produktu; brak listy |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | Nie rozpoczęto |
-| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: model i migracja; brak operacji zmiany oraz odczytu ceny |
+| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: model, migracja i odczyt bieżącej ceny wariantu; brak operacji zmiany |
 | **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | Nie rozpoczęto |
 | **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Nie rozpoczęto |
 | **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | Nie rozpoczęto |
@@ -119,14 +119,16 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Ustalić format i maksymalną długość `Slug`; dodać model drzewa, mapowanie EF Core, migrację i testy metadanych.
 - [x] Udostępnić odczyt całego drzewa kategorii oraz poddrzewa od wskazanej kategorii przez `GET /api/v1/web/categories`.
 - [x] Udostępnić dane pojedynczej kategorii po UUID przez `GET /api/v1/web/categories/{id}`.
-- [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy, operacje drzewa i odczyt produktów z potomków.
+- [x] Udostępnić produkty przypisane do kategorii i jej potomków przez `GET /api/v1/web/products/by-category`, z opcjonalnym stronicowaniem.
+- [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy i operacje drzewa.
 - [ ] Przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
 
 ### 2.5–2.7 Operacje katalogu
 
 - [x] Dodać ręcznie uruchamiany seeder przykładowego katalogu dla środowiska developerskiego; szczegóły w [demo-seed.md](demo-seed.md). Nie zastępuje operacji administracyjnych.
+- [x] Udostępnić szczegóły opublikowanego produktu z widocznymi wariantami przez `GET /api/v1/web/products` z parametrem `id` albo `slug`.
 - [ ] Dodać minimalne operacje administracyjne potrzebne do wprowadzenia i aktualizacji oferty.
-- [ ] Udostępnić listę produktów z filtrowaniem/stronicowaniem i osobny odczyt szczegółów produktu.
+- [ ] Udostępnić ogólną listę produktów z filtrowaniem i stronicowaniem; odczyt szczegółów oraz stronicowana lista według kategorii już działają.
 - [ ] Dodać wyszukiwanie przy użyciu mechanizmów PostgreSQL; ustalić, jakie pola są wyszukiwane i jak ocenić trafność wyników.
 - [ ] Związać stan magazynowy z właściwym poziomem oferty (produkt lub wariant) po podjęciu tej decyzji.
 - [ ] Dodać testy reguł katalogu i sprawdzić rzeczywiste połączenie widoków frontendu z API.

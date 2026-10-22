@@ -10,7 +10,7 @@ Implementacja przyjęła limity: nazwa produktu 200 znaków, `slug` produktu i k
 
 Migracja zawiera ograniczenia FK, UNIQUE i CHECK, dwa częściowe indeksy kategorii, wyzwalacz zapobiegający cyklom drzewa, odroczone kontrole minimum jednego wariantu i unikalnego zestawu par cech w obrębie produktu oraz automatyczne aktualizowanie `updated_at`. `AttributeKey.Code` jest przy przypisaniu przycinany i zamieniany na małe litery. RLS i odebranie uprawnień ról Data API odpowiadają dotychczasowemu wzorcowi tabeli profilu. Migracja jest zastosowana, ale zachowanie tych zabezpieczeń wymaga osobnych testów na PostgreSQL.
 
-W kodzie jest publiczny odczyt całego drzewa kategorii, poddrzewa od wskazanego `rootId` oraz danych pojedynczej kategorii po UUID, bez produktów. **Nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy, odczytu produktów z kategorią i jej potomkami ani walidacji warunków publikacji (kategoria, opublikowany wariant i jego bieżąca cena). Pozostają zadaniami warstwy aplikacyjnej.
+W kodzie jest publiczny odczyt drzewa i pojedynczej kategorii, szczegółów opublikowanego produktu po UUID albo unikalnym slugu oraz listy widocznych produktów z kategorii i jej potomków. Odczyt produktu filtruje ukryte warianty i warianty bez obowiązującej ceny. **Nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy ani walidacji warunków publikacji podczas zapisu. Pozostają zadaniami warstwy aplikacyjnej.
 
 ## Ustalenia koncepcyjne
 
@@ -129,6 +129,6 @@ Przykład: produkt `Koszulka` ma wariant `SKU-RED-S` z parami `kolor=czerwony` i
 - Czy `ImageUrls` będą pełnymi adresami URL, czy ścieżkami w Storage. Kolejność zachowuje tablica `text[]`.
 - Test wyzwalaczy minimum jednego wariantu i unikalnego zbioru par przy równoczesnych zapisach na PostgreSQL.
 - Czy cechy wspólne mają istnieć także na poziomie produktu i jakie jest ich pierwszeństwo wobec cech wariantu.
-- Generowanie `Slug` kategorii z nazwy, odczyt produktów z poddrzewa oraz testy równoczesnych zmian drzewa na PostgreSQL.
+- Generowanie `Slug` kategorii z nazwy oraz testy równoczesnych zmian drzewa na PostgreSQL.
 - Przy projektowaniu widoku: format publicznych adresów kategorii, ewentualne przekierowania oraz kolejność kategorii mających tego samego rodzica.
 - Model promocji nie jest częścią obecnych tabel katalogu. Wstępne powiązanie stanu z wariantem jest w [modelu magazynu](inventory-model.md), a cena wariantu i uzgodniona koncepcja jej historii w [modelu cen](pricing-model.md).

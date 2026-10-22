@@ -4,7 +4,7 @@ Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, zani
 
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` dziewięciu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Nie ma jeszcze operacji dodawania ceny, wyznaczania ceny bieżącej, obliczania najniższej ceny przed obniżką ani promocji. Weryfikacja działania wyzwalacza i zapytań na PostgreSQL pozostaje do wykonania.
+Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` dziewięciu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Odczyt szczegółów produktu wybiera bieżącą cenę sprzedaży wariantu osobno dla każdej waluty. Nie ma jeszcze operacji dodawania ceny, obliczania najniższej ceny przed obniżką ani promocji. Weryfikacja działania wyzwalacza na PostgreSQL pozostaje do wykonania.
 
 ## Ustalenia z właścicielem projektu
 
@@ -41,7 +41,7 @@ flowchart LR
 
 Do wyznaczenia najniższej ceny z 30 dni przed obniżką porównujemy `selling_amount`. Nie wystarczy pobrać samych zmian zapisanych w tym oknie. Trzeba uwzględnić **ostatni rekord obowiązujący na początku okna** oraz wszystkie późniejsze zmiany aż do chwili rozpoczęcia obniżki. Przykładowo cena `100 PLN` ustawiona 40 dni wcześniej nadal mogła obowiązywać przez całe ostatnie 30 dni, mimo że w tym czasie nie dodano żadnego rekordu. Nowej ceny obniżonej nie wliczamy do okresu *przed* obniżką. Dla oferty krótszej niż 30 dni początek okna wyznacza początek oferowania wariantu. Do porównania bierzemy okresy, w których wariant był rzeczywiście oferowany; obsługa ukrycia i ponownej publikacji wymaga doprecyzowania.
 
-Rekordy historii nie mogą być usuwane przez ogólne zadanie czyszczące po 30 dniach: starszy rekord może być potrzebny do ustalenia ceny na początku okna i do odtworzenia wcześniejszej oferty. Brak obowiązującego rekordu odpowiada wariantowi bez ceny; taki wariant nie może zostać opublikowany ani sprzedany. Przed implementacją trzeba ustalić m.in. precyzję kwot, sposób jednoznacznego porządkowania zmian z tą samą datą i obsługę zmian zaplanowanych na przyszłość.
+Rekordy historii nie mogą być usuwane przez ogólne zadanie czyszczące po 30 dniach: starszy rekord może być potrzebny do ustalenia ceny na początku okna i do odtworzenia wcześniejszej oferty. Brak obowiązującego rekordu odpowiada wariantowi bez ceny; taki wariant nie może zostać opublikowany ani sprzedany. Odczyt produktu pomija przyszłe zmiany i przy tej samej dacie skuteczności porządkuje rekordy po `created_at`, a następnie `id` malejąco. Pozostałe decyzje, m.in. precyzja kwot i administracyjna obsługa zmian zaplanowanych na przyszłość, wymagają ustalenia przed zapisem cen.
 
 ## Granica z promocjami i wymogiem wcześniejszej ceny
 

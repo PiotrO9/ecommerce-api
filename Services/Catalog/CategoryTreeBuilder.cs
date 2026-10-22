@@ -5,6 +5,28 @@ namespace E_commerce_backend.Services.Catalog;
 
 public static class CategoryTreeBuilder
 {
+    public static IReadOnlySet<Guid>? GetBranchIds(IReadOnlyCollection<Category> categories, Guid rootId)
+    {
+        var trees = Build(categories, rootId);
+        if (trees is null)
+        {
+            return null;
+        }
+
+        var ids = new HashSet<Guid>();
+        var pending = new Stack<CategoryTreeResponse>(trees);
+        while (pending.TryPop(out var category))
+        {
+            ids.Add(category.Id);
+            foreach (var child in category.Children)
+            {
+                pending.Push(child);
+            }
+        }
+
+        return ids;
+    }
+
     public static IReadOnlyList<CategoryTreeResponse>? Build(
         IReadOnlyCollection<Category> categories, Guid? rootId)
     {

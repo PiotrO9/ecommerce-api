@@ -11,6 +11,8 @@ Wszystkie trasy kontrolerów zaczynają się od `/api/v1/web`. Pola JSON mają n
 | `GET /` | Bez logowania | `200`, `{"message":"API działa"}` | — |
 | `GET /api/v1/web/categories` | Bez logowania; opcjonalne `rootId` (UUID) w query | `200`, tablica drzew kategorii | `400` dla niepoprawnego UUID, `404` dla nieistniejącego `rootId`, `503` przy niedostępnej bazie |
 | `GET /api/v1/web/categories/{id}` | Bez logowania; `id` kategorii (UUID) w ścieżce | `200`, pojedyncza kategoria | `400` dla niepoprawnego UUID, `404` dla nieistniejącego `id`, `503` przy niedostępnej bazie |
+| `GET /api/v1/web/products?id={uuid}` lub `?slug={slug}` | Bez logowania; dokładnie jeden parametr query: `id` (UUID) albo `slug` produktu | `200`, opublikowany produkt z kategoriami i widocznymi wariantami | `400` dla braku lub obu parametrów, pustego `slug` albo niepoprawnego UUID; `404` dla produktu nieistniejącego, ukrytego lub bez widocznego wariantu z ceną; `503` przy niedostępnej bazie |
+| `GET /api/v1/web/products/by-category?categoryId={uuid}` lub `?slug={slug}` | Bez logowania; dokładnie jeden parametr query: `categoryId` (UUID) albo `slug` kategorii; opcjonalne `page` i `pageSize` | `200`, obiekt z `items` (produkty z kategorii i jej podkategorii) oraz `pagination` | `400` dla braku lub obu parametrów kategorii, pustego `slug`, niepoprawnego UUID albo błędnego stronicowania; `404` dla nieznanej kategorii; `409` dla slugu pasującego do kilku kategorii; `503` przy niedostępnej bazie |
 | `POST /api/v1/web/auth/register` | `email`, `password`, `confirmPassword` | `201`, bez sesji w odpowiedzi | `400` dla znanych błędów danych/hasła, `409` dla rozpoznanego istniejącego adresu, `429` dla limitu, `503` dla niedostępnej lub nieznanej odpowiedzi usługi |
 | `POST /api/v1/web/auth/login` | `email`, `password`, opcjonalne `rememberMe` (domyślnie `false`) | `200` z pustym body i ciasteczkiem sesji | `401` dla rozpoznanych błędnych danych, `429` dla limitu, `503` dla niedostępnej lub nieznanej odpowiedzi usługi |
 | `POST /api/v1/web/auth/password-reset/request` | `email` | `202` z pustym body, niezależnie od istnienia konta i wyniku dostarczenia | `400` dla niepoprawnego formatu e-maila; `429` po przekroczeniu limitu żądań |
@@ -22,9 +24,29 @@ Wszystkie trasy kontrolerów zaczynają się od `/api/v1/web`. Pola JSON mają n
 
 Endpoint `POST /api/v1/web/seed` jest dostępny tylko w środowisku `Development` po ustawieniu `DemoSeed:Enabled=true` i klucza `DemoSeed:Key`. Wymaga nagłówka `X-Demo-Seed-Key`; poprawne wywołanie najpierw czyści wszystkie rekordy z dziewięciu tabel katalogu, stanów i historii cen, także spoza seedera, a następnie tworzy nowy zestaw. Nie dotyka kont, profili ani tabel `auth`. Reset i seed są jedną transakcją. Odpowiedź `200` zawiera `added` oraz `created` z licznikami nowych rekordów; błędny klucz daje `404`. Opcjonalne body JSON przyjmuje niezależne pola `categories`, `products`, `variants` z poziomami `low`, `med`/`medium`, `high` (domyślnie `medium` dla kategorii i produktów oraz `low` dla wariantów); każdy poziom losuje cel z opisanego w dokumentacji zakresu, a niepoprawny poziom daje `400`. Szczegóły zakresów i uruchomienia są w [demo-seed.md](demo-seed.md).
 
-`GET /api/v1/web/categories` bez `rootId` zwraca wszystkie kategorie główne z potomkami; pusty katalog daje `[]`. Z `rootId` odpowiedź zawiera jedno drzewo, którego korzeniem jest wskazana kategoria, bez jej przodków i sąsiednich gałęzi. Każdy węzeł ma `id`, `parentId`, `displayName`, `slug` i tablicę `children`. Rodzeństwo jest obecnie sortowane alfabetycznie po `displayName`, z `id` jako rozstrzygnięciem remisu. Endpoint nie zwraca produktów przypisanych do kategorii; ich odczyt pozostaje osobnym zadaniem.
+`GET /api/v1/web/categories` bez `rootId` zwraca wszystkie kategorie główne z potomkami; pusty katalog daje `[]`. Z `rootId` odpowiedź zawiera jedno drzewo, którego korzeniem jest wskazana kategoria, bez jej przodków i sąsiednich gałęzi. Każdy węzeł ma `id`, `parentId`, `displayName`, `slug` i tablicę `children`. Rodzeństwo jest obecnie sortowane alfabetycznie po `displayName`, z `id` jako rozstrzygnięciem remisu. Ten endpoint zwraca wyłącznie kategorie; produkty są dostępne przez `GET /api/v1/web/products/by-category`.
 
 `GET /api/v1/web/categories/{id}` zwraca tylko dane wskazanej kategorii: `id`, `displayName`, `slug`, `parentId`, `createdAt` i `updatedAt`. Nie zawiera podkategorii ani produktów; do pobrania gałęzi służy `GET /api/v1/web/categories?rootId={id}`. Ponieważ `slug` jest unikalny tylko wśród rodzeństwa, odczyt pojedynczej kategorii używa UUID.
+
+`GET /api/v1/web/products` wymaga dokładnie jednego z parametrów `id` i `slug`. Wartość `slug` jest przed wyszukaniem przycinana i zamieniana na małe litery. Odpowiedź zwraca `id`, `name`, `slug`, daty produktu, `categories` (`id`, `displayName`, `slug`) i `variants`. Wariant zawiera `id`, `sku`, opisy, `imageUrls`, daty, `attributes` (`code`, `displayName` klucza, `value`), `quantityOnHand` oraz `currentPrices` (`amount`, `currency`). Pole `quantityOnHand=null` oznacza brak rekordu stanu, a `0` oznacza znany zerowy stan. Endpoint pokazuje tylko produkt w statusie `Published` z przypisaną kategorią i opublikowanymi wariantami z obowiązującą ceną. W `currentPrices` jest ostatnia cena sprzedaży dla każdej waluty z `effectiveAt` nie późniejszym niż chwila odczytu; przy tej samej dacie skuteczności rozstrzygają `createdAt`, potem `id`. Nie zwraca historii cen, ceny przed obniżką ani oznaczenia promocji. Zasady promocji i informacji o wcześniejszej cenie pozostają osobnym zadaniem.
+
+`GET /api/v1/web/products/by-category` zwraca obiekt z `items` i `pagination`. Elementy `items` mają ten sam format co szczegóły produktu, posortowane po nazwie produktu i ID. Lista obejmuje bezpośrednie przypisania do kategorii oraz wszystkie jej podkategorie; produkt przypisany do kilku pasujących kategorii pojawia się raz. Stosuje te same warunki widoczności produktu i wariantów co odczyt szczegółów. Istniejąca kategoria bez widocznych produktów daje `items: []`. Slug kategorii jest przycinany i zamieniany na małe litery, ale jest unikalny tylko wśród rodzeństwa. Jeśli pasuje do kilku kategorii w różnych gałęziach, endpoint zwraca `409`; wtedy trzeba wskazać `categoryId`.
+
+Stronicowanie tej listy jest opcjonalne. Bez `page` i `pageSize` pole `items` zawiera wszystkie pasujące produkty, a `pagination` ma wartość `null`. Po podaniu któregokolwiek parametru brakujące wartości wynoszą `page=1` i `pageSize=20`. Strony liczymy od 1, a `pageSize` musi mieścić się w zakresie 1–100; strona po ostatniej daje `items: []`, o ile jej przesunięcie mieści się w zakresie typu `int`. Filtrowanie widoczności odbywa się przed liczeniem i wyborem strony. Pole `pagination` zawiera `page`, `pageSize`, `totalItems`, `totalPages`, `hasPreviousPage` i `hasNextPage`. Przykład: `GET /api/v1/web/products/by-category?slug=demo-odziez&page=2&pageSize=20`. To zmienia format odpowiedzi listy względem wcześniejszej tablicy; klienci powinni czytać produkty z `items`.
+
+```json
+{
+  "items": [],
+  "pagination": {
+    "page": 14,
+    "pageSize": 20,
+    "totalItems": 251,
+    "totalPages": 13,
+    "hasPreviousPage": true,
+    "hasNextPage": false
+  }
+}
+```
 
 `RegisterRequest` wymaga prawidłowego formatu e-maila, hasła długości 6–50 znaków i zgodnego potwierdzenia. Dodatkowe wymagania kategorii znaków egzekwuje Supabase Auth. `LoginRequest` nie sprawdza polityki siły hasła. Profil wymaga niepustego imienia i nazwiska, każde do 100 znaków; przed zapisem API usuwa białe znaki z początku i końca.
 

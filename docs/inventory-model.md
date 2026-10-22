@@ -4,7 +4,7 @@ Cel: opisać powiązanie stanu magazynowego z wariantem oraz pytania, które trz
 
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Nie ma operacji magazynowych, rezerwacji ani checkoutu; reguła blokowania zakupu bez rekordu stanu zostanie wdrożona w checkoutcie.
+Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Publiczny odczyt szczegółów produktu zwraca ilość wariantu lub `null`, gdy rekord stanu nie istnieje. Nie ma operacji magazynowych, rezerwacji ani checkoutu; reguła blokowania zakupu bez rekordu stanu zostanie wdrożona w checkoutcie.
 
 ## Ustalenie z właścicielem projektu
 

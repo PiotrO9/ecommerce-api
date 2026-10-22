@@ -35,6 +35,19 @@ public sealed class CategoryTreeBuilderTests
     }
 
     [Fact]
+    public void BranchIdsIncludeRootAndAllDescendantsWithoutOtherBranches()
+    {
+        var ids = CategoryTreeBuilder.GetBranchIds(Categories(), _bId)!;
+
+        Assert.Equal(2, ids.Count);
+        Assert.Contains(_bId, ids);
+        Assert.Contains(_cId, ids);
+        Assert.DoesNotContain(_aId, ids);
+        Assert.DoesNotContain(_otherId, ids);
+        Assert.Null(CategoryTreeBuilder.GetBranchIds(Categories(), Guid.NewGuid()));
+    }
+
+    [Fact]
     public void UnknownCategoryReturnsNullAndEmptyCatalogReturnsEmptyList()
     {
         Assert.Null(CategoryTreeBuilder.Build(Categories(), Guid.NewGuid()));
