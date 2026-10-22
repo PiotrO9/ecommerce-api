@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. Brak jeszcze operacji API i testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt drzewa kategorii; nie ma jeszcze odczytu produktów, operacji zapisu katalogu ani testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -33,7 +33,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **2.1 Wstępny model produktu** | Uzgodniona lista pól produktu zapisana w tym dokumencie | Gotowe — ustalone z użytkownikiem 21.10.2026 |
 | **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
 | **2.3 Model wariantu** | Relacja z produktem, cechy, encje i migracja | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
-| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja zastosowana; brak operacji odczytu i zapisu |
+| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja i odczyt drzewa; brak zapisu i odczytu produktów z poddrzewa |
 | **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
 | **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | Nie rozpoczęto |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | Nie rozpoczęto |
@@ -117,6 +117,8 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Dopuścić ręczną zmianę zapisanego `Slug` po walidacji oraz ustalić prezentację ścieżki kategorii od korzenia do wybranego węzła.
 - [x] Dodać dwa unikalne indeksy częściowe dla `Slug` oraz wyzwalacz z blokadą i rekurencyjnym sprawdzeniem cyklu.
 - [x] Ustalić format i maksymalną długość `Slug`; dodać model drzewa, mapowanie EF Core, migrację i testy metadanych.
+- [x] Udostępnić odczyt całego drzewa kategorii oraz poddrzewa od wskazanej kategorii przez `GET /api/v1/web/categories`.
+- [x] Udostępnić dane pojedynczej kategorii po UUID przez `GET /api/v1/web/categories/{id}`.
 - [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy, operacje drzewa i odczyt produktów z potomków.
 - [ ] Przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
 

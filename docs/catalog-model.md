@@ -4,13 +4,13 @@ Cel: zebrać decyzje dotyczące produktu, wariantu, cech i kategorii oraz pokaza
 
 ## Stan potwierdzony w kodzie
 
-W kodzie są encje `Product`, `ProductVariant`, `AttributeKey`, `AttributePair`, `VariantAttributePair`, `Category` i `ProductCategory`, ich mapowanie EF Core oraz migracja `AddCatalogInventoryAndPriceModels`. Migracja została zastosowana w Supabase; potwierdza to historia EF `public.__EcommerceMigrationsHistory` sprawdzona 22 października 2026 r. Użytkownik potwierdził widoczność tabel w bazie. Nie ma endpointów ani operacji administracyjnych katalogu.
+W kodzie są encje `Product`, `ProductVariant`, `AttributeKey`, `AttributePair`, `VariantAttributePair`, `Category` i `ProductCategory`, ich mapowanie EF Core oraz migracja `AddCatalogInventoryAndPriceModels`. Migracja została zastosowana w Supabase; potwierdza to historia EF `public.__EcommerceMigrationsHistory` sprawdzona 22 października 2026 r. Użytkownik potwierdził widoczność tabel w bazie. Jest endpoint odczytu drzewa kategorii; nie ma jeszcze operacji administracyjnych katalogu.
 
 Implementacja przyjęła limity: nazwa produktu 200 znaków, `slug` produktu i kategorii 160, SKU 100, `code` cechy 100, `display_name` klucza cechy i kategorii 120, wartość cechy 255, krótki opis 500. `slug` ma format małych liter ASCII, cyfr i łączników (`^[a-z0-9]+(-[a-z0-9]+)*$`); `slug` produktu jest globalnie unikalny, a kategorii unikalny wśród rodzeństwa. Identyfikatory są UUID nadawanymi w kodzie. `ImageUrls` to uporządkowana tablica `text[]`. Statusy zapisujemy jako `Draft`, `Published` i `Hidden`.
 
 Migracja zawiera ograniczenia FK, UNIQUE i CHECK, dwa częściowe indeksy kategorii, wyzwalacz zapobiegający cyklom drzewa, odroczone kontrole minimum jednego wariantu i unikalnego zestawu par cech w obrębie produktu oraz automatyczne aktualizowanie `updated_at`. `AttributeKey.Code` jest przy przypisaniu przycinany i zamieniany na małe litery. RLS i odebranie uprawnień ról Data API odpowiadają dotychczasowemu wzorcowi tabeli profilu. Migracja jest zastosowana, ale zachowanie tych zabezpieczeń wymaga osobnych testów na PostgreSQL.
 
-W kodzie **nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy, odczytu produktów z kategorią i jej potomkami ani walidacji warunków publikacji (kategoria, opublikowany wariant i jego bieżąca cena). Pozostają zadaniami warstwy aplikacyjnej.
+W kodzie jest publiczny odczyt całego drzewa kategorii, poddrzewa od wskazanego `rootId` oraz danych pojedynczej kategorii po UUID, bez produktów. **Nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy, odczytu produktów z kategorią i jej potomkami ani walidacji warunków publikacji (kategoria, opublikowany wariant i jego bieżąca cena). Pozostają zadaniami warstwy aplikacyjnej.
 
 ## Ustalenia koncepcyjne
 
