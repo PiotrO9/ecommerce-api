@@ -4,7 +4,7 @@ Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, zani
 
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen. Nie ma jeszcze operacji dodawania ceny, wyznaczania ceny bieżącej, obliczania najniższej ceny przed obniżką ani promocji. Weryfikacja działania wyzwalacza i zapytań na PostgreSQL pozostaje do wykonania.
+Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` dziewięciu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Nie ma jeszcze operacji dodawania ceny, wyznaczania ceny bieżącej, obliczania najniższej ceny przed obniżką ani promocji. Weryfikacja działania wyzwalacza i zapytań na PostgreSQL pozostaje do wykonania.
 
 ## Ustalenia z właścicielem projektu
 

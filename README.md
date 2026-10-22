@@ -76,6 +76,7 @@ Możesz też uruchomić backend przez Docker Compose. Wymaga to przygotowania `.
 - [Architektura i mapa kodu](docs/architecture.md) — punkt wejścia do obecnego backendu.
 - [Kontrakt API](docs/api-contract.md) — aktualne trasy, żądania i odpowiedzi.
 - [Baza danych i EF Core](docs/database.md) — schematy, migracje i granice dostępu.
+- [Seeder demonstracyjny](docs/demo-seed.md) — uruchomienie, zakres czyszczenia i format odpowiedzi; [zasady jego rozbudowy](docs/seeder-maintenance.md).
 - [Uwierzytelnianie: stan i plan nauki](docs/auth-implementation-plan.md) oraz [profile użytkowników](docs/user-profiles.md).
 - [Testy](docs/testing.md), [Docker](docs/docker.md) i [obszary chronione](docs/protected-areas.md).
 

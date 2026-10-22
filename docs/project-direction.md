@@ -122,6 +122,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 
 ### 2.5–2.7 Operacje katalogu
 
+- [x] Dodać ręcznie uruchamiany seeder przykładowego katalogu dla środowiska developerskiego; szczegóły w [demo-seed.md](demo-seed.md). Nie zastępuje operacji administracyjnych.
 - [ ] Dodać minimalne operacje administracyjne potrzebne do wprowadzenia i aktualizacji oferty.
 - [ ] Udostępnić listę produktów z filtrowaniem/stronicowaniem i osobny odczyt szczegółów produktu.
 - [ ] Dodać wyszukiwanie przy użyciu mechanizmów PostgreSQL; ustalić, jakie pola są wyszukiwane i jak ocenić trafność wyników.

@@ -17,6 +17,8 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/catalog-model.md` zawiera wstępny model produktu, wariantu, cech i kategorii oraz relacje i pytania otwarte przed migracją.
 - `docs/inventory-model.md` zawiera wstępne ustalenie stanu magazynowego per wariant i otwarte reguły rezerwacji.
 - `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
+- `docs/demo-seed.md` opisuje ręcznie uruchamiany, developerski seeder katalogu i jego zabezpieczenia.
+- `docs/seeder-maintenance.md` określa, jak rozbudowywać seeder razem ze zmianami modelu bazy.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 
@@ -33,6 +35,7 @@ Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są
 - Nie dopisuj niepotwierdzonych wymagań, integracji ani decyzji jako faktów. Oznacz je jako propozycje lub pytania otwarte.
 - Po zmianach w kodzie uruchom `dotnet build` i podaj wynik. Uruchom odpowiednie testy, jeśli zostaną dodane.
 - Nie zapisuj w dokumentacji sekretów ani danych klientów.
+- Przy zmianie encji, migracji, wymaganych pól lub relacji sprawdź `docs/seeder-maintenance.md`. Jeśli nowe dane należą do scenariuszy demonstracyjnych aplikacji, zaktualizuj seeder, jego liczniki i dokumentację w tym samym zadaniu; wyjątek uzasadnij w dokumentacji.
 
 ## Obszary chronione
 

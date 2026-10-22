@@ -1,10 +1,14 @@
 using E_commerce_backend.Data;
 using E_commerce_backend.Routing;
 using E_commerce_backend.Services.Auth;
+using E_commerce_backend.Services.Development;
 using E_commerce_backend.Services.Email;
 using E_commerce_backend.Services.Profile;
+using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.EntityFrameworkCore;
 
@@ -107,6 +111,7 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 builder.Services.AddSingleton<AuthCookieService>();
 builder.Services.AddScoped<AuthenticatedUserService>();
 builder.Services.AddScoped<IUserProfileReader, UserProfileReader>();
+builder.Services.AddScoped<DemoCatalogSeeder>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(
@@ -120,6 +125,52 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwaggerUI(options =>
         options.SwaggerEndpoint("/openapi/v1.json", "E-commerce API v1"));
+
+    if (builder.Configuration.GetValue<bool>("DemoSeed:Enabled"))
+    {
+        var demoSeedKey = builder.Configuration["DemoSeed:Key"];
+        if (string.IsNullOrWhiteSpace(demoSeedKey) || demoSeedKey.Length < 32)
+        {
+            throw new InvalidOperationException("DemoSeed:Key musi mieć co najmniej 32 znaki, gdy seeder jest włączony.");
+        }
+
+        app.MapPost("/api/v1/web/seed", async (
+            [FromHeader(Name = "X-Demo-Seed-Key")] string? suppliedKey,
+            HttpContext context, DemoCatalogSeeder seeder, CancellationToken cancellationToken) =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            if (!DemoSeedAccess.IsAuthorized(suppliedKey, demoSeedKey))
+            {
+                return Results.NotFound();
+            }
+
+            DemoSeedRequest? request = null;
+            if (context.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true)
+            {
+                if (!context.Request.HasJsonContentType())
+                {
+                    return Results.StatusCode(StatusCodes.Status415UnsupportedMediaType);
+                }
+
+                try
+                {
+                    request = await context.Request.ReadFromJsonAsync<DemoSeedRequest>(cancellationToken);
+                }
+                catch (JsonException)
+                {
+                    return Results.BadRequest(new { error = "Niepoprawny JSON." });
+                }
+            }
+
+            if (!DemoSeedOptions.TryCreate(request, out var options, out var error))
+            {
+                return Results.BadRequest(new { error });
+            }
+
+            var result = await seeder.SeedAsync(options!, cancellationToken);
+            return Results.Ok(result);
+        });
+    }
 }
 
 app.UseRouting();
