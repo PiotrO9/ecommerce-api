@@ -10,7 +10,7 @@ Implementacja przyjęła limity: nazwa produktu 200 znaków, `slug` produktu i k
 
 Migracja zawiera ograniczenia FK, UNIQUE i CHECK, dwa częściowe indeksy kategorii, wyzwalacz zapobiegający cyklom drzewa, odroczone kontrole minimum jednego wariantu i unikalnego zestawu par cech w obrębie produktu oraz automatyczne aktualizowanie `updated_at`. `AttributeKey.Code` jest przy przypisaniu przycinany i zamieniany na małe litery. RLS i odebranie uprawnień ról Data API odpowiadają dotychczasowemu wzorcowi tabeli profilu. Migracja jest zastosowana, ale zachowanie tych zabezpieczeń wymaga osobnych testów na PostgreSQL.
 
-W kodzie jest publiczny odczyt drzewa i pojedynczej kategorii, szczegółów opublikowanego produktu po UUID albo unikalnym slugu oraz listy widocznych produktów z kategorii i jej potomków. Odczyt produktu filtruje ukryte warianty i warianty bez obowiązującej ceny. **Nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy ani walidacji warunków publikacji podczas zapisu. Pozostają zadaniami warstwy aplikacyjnej.
+W kodzie jest publiczny odczyt drzewa i pojedynczej kategorii, szczegółów opublikowanego produktu po UUID albo unikalnym slugu, ogólnej listy widocznych produktów oraz listy z kategorii i jej potomków. Odczyt produktu filtruje ukryte warianty i warianty bez obowiązującej ceny. **Nie ma jeszcze** operacji publikowania, generowania `slug` kategorii z nazwy ani walidacji warunków publikacji podczas zapisu. Pozostają zadaniami warstwy aplikacyjnej.
 
 ## Ustalenia koncepcyjne
 
@@ -111,6 +111,8 @@ flowchart LR
 ```
 
 Przykład: produkt `Koszulka` ma wariant `SKU-RED-S` z parami `kolor=czerwony` i `rozmiar=S`. Produkt z wariantami `czerwony/S` i `niebieski/M` nie spełnia filtra `czerwony + M`: wszystkie warunki muszą pasować do **tego samego wariantu**. Możliwość filtrowania po dowolnej udostępnionej cesze jest wymaganiem katalogu.
+
+`POST /api/v1/web/products/search` realizuje ten filtr przez obiekty `attributes` z `code` i tablicą `values` w body JSON. Kilka wartości jednego kodu działa jak alternatywa, a różne kody muszą być spełnione razem przez jeden widoczny wariant. Kontrakt żądania i ograniczenia opisuje [api-contract.md](api-contract.md).
 
 ## Reguły spójności do wdrożenia
 

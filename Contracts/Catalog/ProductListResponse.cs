@@ -1,6 +1,6 @@
 namespace E_commerce_backend.Contracts.Catalog;
 
-public sealed record ProductCategoryListResponse(
+public sealed record ProductListResponse(
     IReadOnlyList<ProductDetailsResponse> Items,
     ProductListPaginationResponse? Pagination);
 
