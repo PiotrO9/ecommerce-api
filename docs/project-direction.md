@@ -66,12 +66,12 @@ Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 
 
 ### Kolejne ulepszenia odczytu katalogu
 
-Lista propozycji zaakceptowana do zachowania przez właściciela projektu 28.10.2026. Punkty 1–3 są wdrożone; punkt 4 pozostaje do późniejszej realizacji. To priorytety dla odczytu, a nie zmiana kolejności całego projektu.
+Lista propozycji zaakceptowana do zachowania przez właściciela projektu 28.10.2026. Punkty 1–4 są wdrożone. To priorytety dla odczytu, a nie zmiana kolejności całego projektu.
 
 1. [x] Automatyczne testy integracyjne wyszukiwania na PostgreSQL: cechy na tym samym wariancie, liczenie produktu raz, zera i alternatywy filtrów.
-2. [x] Zmierzyć czas i plany zapytań wyszukiwania oraz liczników filtrów przy większym katalogu; zoptymalizować zapytania i indeksy na podstawie pomiaru. [Audyt na 5000 produktach](catalog-performance-audit.md) zawiera wyniki przed zmianą i po niej oraz odnotowuje pogorszenie prostego filtrowania bez ceny do dalszej analizy.
+2. [x] Zmierzyć czas i plany zapytań wyszukiwania oraz liczników filtrów przy większym katalogu; zoptymalizować zapytania i indeksy na podstawie pomiaru. [Audyt na 5000 produktach](catalog-performance-audit.md) zawiera wyniki przed zmianą i po niej oraz kontrolę początkowego podejrzenia regresji prostych filtrów, której nie potwierdził pomiar A–B–A.
 3. [x] Dodać sortowanie i filtrowanie po bieżącej cenie sprzedaży w PLN, z ceną produktu wyznaczaną z pasujących wariantów. Reguły i zakres testów są w [modelu cen](pricing-model.md#odczyt-cen-w-katalogu).
-4. [ ] Rozważyć ranking trafności wyszukiwania tekstowego, np. pierwszeństwo dokładnego trafienia w nazwę przed fragmentem nazwy lub SKU.
+4. [x] Wdrożyć domyślny ranking trafności dla niepustego `q`: dokładna nazwa, dokładne SKU, początek nazwy, początek SKU, fragment nazwy, fragment SKU. Jawne `sort` ma pierwszeństwo; szczegóły w [kontrakcie API](api-contract.md).
 
 ## 0. Istniejący fundament
 
@@ -146,7 +146,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Zwracać lekkie pozycje produktu w listach i wyszukiwaniu, zachowując pełny model w szczegółach.
 - [x] Dodać sortowanie list po nazwie i dacie publikacji.
 - [x] Wdrożyć uzgodniony na początek odczyt cenowy w PLN i regułę sortowania po najniższej bieżącej cenie pasującego wariantu; przed obsługą wielu walut rozszerzyć tę regułę.
-- [ ] Ustalić, czy i jak oceniać trafność wyników wyszukiwania.
+- [x] Ustalić i wdrożyć ranking trafności wyników wyszukiwania dla niepustego `q`.
 - [ ] Uwzględnić ustalony stan magazynowy per wariant w przyszłej logice zakupu; brak znanego stanu ma blokować zakup.
 - [ ] Dodać testy reguł katalogu i sprawdzić rzeczywiste połączenie widoków frontendu z API.
 

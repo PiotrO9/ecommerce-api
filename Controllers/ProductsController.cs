@@ -404,10 +404,10 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         return true;
     }
 
-    private static string SearchPattern(string q) => "%" + q
+    private static string EscapedSearchTerm(string q) => q
         .Replace(@"\", @"\\")
         .Replace("%", @"\%")
-        .Replace("_", @"\_") + "%";
+        .Replace("_", @"\_");
 
     private IQueryable<VariantPriceChange> CurrentPlnPrices(DateTime now) =>
         database.VariantPriceChanges.FromSqlInterpolated($"""
@@ -451,7 +451,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         if (!string.IsNullOrWhiteSpace(q))
         {
-            var pattern = SearchPattern(q.Trim());
+            var pattern = "%" + EscapedSearchTerm(q.Trim()) + "%";
             variants = variants.Where(variant =>
                 EF.Functions.ILike(variant.Product.Name, pattern, @"\") ||
                 EF.Functions.ILike(variant.SKU, pattern, @"\"));
@@ -542,25 +542,44 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             totalCount = await query.CountAsync(cancellationToken);
         }
 
-        query = sort switch
+        if (sort is null && !string.IsNullOrWhiteSpace(q))
         {
-            "name-desc" => query.OrderByDescending(product => product.Name).ThenBy(product => product.Id),
-            "newest" => query.OrderByDescending(product => product.PublishedAt).ThenBy(product => product.Id),
-            "oldest" => query.OrderBy(product => product.PublishedAt).ThenBy(product => product.Id),
-            "price-asc" =>
-                from product in productScope.AsNoTracking()
-                join price in pricesByProduct on product.Id equals price.ProductId
-                where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
-                orderby price.Amount == null, price.Amount, product.Id
-                select product,
-            "price-desc" =>
-                from product in productScope.AsNoTracking()
-                join price in pricesByProduct on product.Id equals price.ProductId
-                where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
-                orderby price.Amount == null, price.Amount descending, product.Id
-                select product,
-            _ => query.OrderBy(product => product.Name).ThenBy(product => product.Id)
-        };
+            var exact = EscapedSearchTerm(q.Trim());
+            var prefix = exact + "%";
+            var contains = "%" + exact + "%";
+            query = query.OrderBy(product => matchingVariants
+                    .Where(variant => variant.ProductId == product.Id)
+                    .Min(variant =>
+                        EF.Functions.ILike(product.Name, exact, @"\") ? 0 :
+                        EF.Functions.ILike(variant.SKU, exact, @"\") ? 1 :
+                        EF.Functions.ILike(product.Name, prefix, @"\") ? 2 :
+                        EF.Functions.ILike(variant.SKU, prefix, @"\") ? 3 :
+                        EF.Functions.ILike(product.Name, contains, @"\") ? 4 : 5))
+                .ThenBy(product => product.Name)
+                .ThenBy(product => product.Id);
+        }
+        else
+        {
+            query = sort switch
+            {
+                "name-desc" => query.OrderByDescending(product => product.Name).ThenBy(product => product.Id),
+                "newest" => query.OrderByDescending(product => product.PublishedAt).ThenBy(product => product.Id),
+                "oldest" => query.OrderBy(product => product.PublishedAt).ThenBy(product => product.Id),
+                "price-asc" =>
+                    from product in productScope.AsNoTracking()
+                    join price in pricesByProduct on product.Id equals price.ProductId
+                    where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
+                    orderby price.Amount == null, price.Amount, product.Id
+                    select product,
+                "price-desc" =>
+                    from product in productScope.AsNoTracking()
+                    join price in pricesByProduct on product.Id equals price.ProductId
+                    where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
+                    orderby price.Amount == null, price.Amount descending, product.Id
+                    select product,
+                _ => query.OrderBy(product => product.Name).ThenBy(product => product.Id)
+            };
+        }
 
         if (paginated)
         {

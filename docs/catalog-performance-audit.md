@@ -1,6 +1,6 @@
 # Audyt wydajności odczytu katalogu
 
-Cel: zachować warunki, wyniki przed i po optymalizacji wyszukiwania, liczników filtrów i cen z 28.10.2026. To wynik testu na danych syntetycznych, nie gwarancja czasu odpowiedzi w środowisku produkcyjnym.
+Cel: zachować warunki, wyniki przed i po optymalizacji wyszukiwania, liczników filtrów i cen z 28.10.2026. To wynik testu na danych syntetycznych, nie gwarancja czasu odpowiedzi w środowisku produkcyjnym. Pomiary `q` we wcześniejszych sekcjach wykonano przed dodaniem domyślnego rankingu trafności; jego koszt zmierzono osobno na końcu dokumentu.
 
 ## Stan kodu przed optymalizacją
 
@@ -81,4 +81,31 @@ API i PostgreSQL działały lokalnie, bez diagnostycznego logowania SQL. Zachowa
 
 Dla 50 żądań na scenariusz przy maksymalnie pięciu jednoczesnych, z trzema rozgrzewkami, złożony POST z dwiema cechami, ceną i `price-asc` osiągnął p95 **424,6 ms** i 12,0 żądań/s; wcześniej było 1835,4 ms i 4,7 żądania/s. Wszystkie żądania zwróciły `200`. GET sortowany po cenie miał p95 129,8 ms przy pięciu jednoczesnych.
 
-Robocze progi p95 dla lokalnego zestawu, 300 ms dla cenowego GET i 500 ms dla złożonego POST z pięcioma klientami, zostały osiągnięte, ale drugi z nich ma niewielki zapas. **Proste wyszukiwanie z jedną lub dwiema cechami bez ceny pogorszyło się**; wymaga osobnej analizy planu zapytania przed dalszą optymalizacją. Ponadto wyniki mogą się zmienić przy innym rozkładzie danych, zimnym cache, ruchu produkcyjnym i opóźnieniu sieci do Supabase.
+Robocze progi p95 dla lokalnego zestawu, 300 ms dla cenowego GET i 500 ms dla złożonego POST z pięcioma klientami, zostały osiągnięte, ale drugi z nich ma niewielki zapas. W tej serii proste wyszukiwanie z jedną lub dwiema cechami bez ceny było wolniejsze; wynik ten sprawdzono ponownie poniżej. Wyniki mogą się zmienić przy innym rozkładzie danych, zimnym cache, ruchu produkcyjnym i opóźnieniu sieci do Supabase.
+
+## Kontrola podejrzenia regresji prostych filtrów
+
+Ponowiono pomiar na tej samej bazie 5000 produktów, z wyłączonym logowaniem SQL, po pięciu rozgrzewkach i z 40 żądaniami na scenariusz. Dla porównania uruchomiono też poprzedni commit `1d91bba` na tej samej bazie i tym samym komputerze; następnie ponownie zmierzono aktualny commit `1479618`. Wersje działały kolejno, bez równoczesnych żądań.
+
+| Wersja i seria | Jedna cecha p95 | Dwie cechy p95 | Pięć cech p95 |
+| --- | ---: | ---: | ---: |
+| Aktualna, seria 1 | 135,2 ms | 134,9 ms | 148,9 ms |
+| Aktualna, seria 2 | 181,9 ms | 126,9 ms | 139,4 ms |
+| Poprzednia | 159,8 ms | 181,1 ms | 284,4 ms |
+| Aktualna, seria 3 | 137,1 ms | 135,0 ms | 145,8 ms |
+
+W logu diagnostycznym dla dwóch cech aktualna wersja wykonała sześć zapytań SQL, w tym jedno liczące wartości filtrów (około 50 ms w ciepłej próbie). Poprzednia wykonała osiem zapytań, w tym trzy liczące wartości filtrów (około 40, 24 i 23 ms). `EXPLAIN (ANALYZE, BUFFERS)` na tych samych danych pokazał dla aktualnego zapytania licznikowego 8,7 ms planowania i 61,7 ms wykonania; trzy stare zapytania wymagały łącznie 29,5 ms planowania i 108,2 ms wykonania. Czasy `EXPLAIN` nie są bezpośrednim pomiarem HTTP, ale potwierdzają koszt dodatkowych poleceń.
+
+**Wniosek:** wcześniejsze spowolnienie 219–223 ms nie powtórzyło się stabilnie. W porównaniu A–B–A aktualny kod był zwykle szybszy, zwłaszcza dla dwóch i pięciu cech. Przyczyna wahania pierwszej serii nie została ustalona, dlatego nie ma podstaw do zmiany zapytania ani dodania indeksu tylko na podstawie tamtego wyniku. Jeśli problem pojawi się w środowisku docelowym, należy zebrać pomiary z tego środowiska i ponownie sprawdzić plany.
+
+## Krótki pomiar rankingu trafności
+
+Na tej samej lokalnej bazie 5000 produktów uruchomiono GET katalogu z frazą perf, stroną 1 i rozmiarem strony 20. API działało bez logowania poleceń SQL. W kolejnych seriach A–B–A wykonano po 5 żądań rozgrzewających i 30 mierzonych, jednym klientem. Każdy wariant zwrócił 4564 pasujące produkty.
+
+| Sortowanie | p50 | p95 |
+| --- | ---: | ---: |
+| Domyślne po trafności, seria 1 | 115,5 ms | 125,6 ms |
+| Jawne name-asc | 53,3 ms | 66,2 ms |
+| Domyślne po trafności, seria 2 | 114,6 ms | 116,5 ms |
+
+Ranking zwiększył czas tego szerokiego zapytania około dwukrotnie, ale p95 pozostało blisko 120 ms w tej lokalnej próbie. To pomiar na ciepłej bazie, bez ruchu równoległego. Przy większym katalogu lub innym rozkładzie zapytań należy zmierzyć ponownie przed doborem indeksów.
