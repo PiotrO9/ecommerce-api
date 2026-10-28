@@ -2,9 +2,22 @@
 
 Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 
+## Integracyjne testy katalogu na PostgreSQL
+
+`Integration/ProductSearchPostgresTests.cs` uruchamia rzeczywiste zapytania EF Core na lokalnym PostgreSQL. Sprawdza dopasowanie cech i ceny do tego samego wariantu, liczenie produktu raz przy kilku pasujących wariantach, alternatywy i zera filtrów, przyszłą cenę, brak ceny PLN oraz kolejność sortowania. Test uruchamia seeder, który czyści dziewięć tabel katalogu, dlatego wymaga osobnej bazy o nazwie zaczynającej się od `ecomm_test_` na `localhost` albo `127.0.0.1`. Gdy zmienna nie jest ustawiona, xUnit oznacza test jako pominięty.
+
+Po utworzeniu osobnej bazy i zastosowaniu migracji uruchom (na zwykłym PostgreSQL najpierw przygotuj minimalny schemat `auth` i role skryptem `tests/performance/bootstrap-local-postgres.sql`):
+
+```powershell
+$env:ECOMMERCE_TEST_DATABASE = 'Host=127.0.0.1;Port=5432;Database=ecomm_test_catalog;Username=postgres;Password=...'
+dotnet test E-commerce-backend.slnx --filter FullyQualifiedName~ProductSearchPostgresTests
+```
+
+Zestaw pomiarowy dla 5000 produktów opisuje [audyt katalogu](catalog-performance-audit.md) i skrypty w `tests/performance/`.
+
 Próba odczytu z 28.10.2026 na skonfigurowanej bazie sprawdziła: lekkie `items` i `pricesFrom` w katalogu (262 produkty), opcje cech dla `demo-odziez`, filtrowanie POST po cesze z `sort=newest`, `sort=name-desc` w GET, ścieżkę kategorii oraz niezmieniony pełny odczyt szczegółów. Kolejna próba POST sprawdziła kontekstowe `availableFilters`: bez filtrów, dla pasującej pary `kolor=czerwony` i `rozmiar=S`, dla kombinacji bez wyników (`czerwony` + `M`), dla `q` trafiającego w SKU innego wariantu, stałość liczników między stronami oraz zachowanie nieznanej wybranej wartości. Przy zerowym wyniku wybrana wartość pozostała z licznikiem `0`, a alternatywna wartość dostała licznik `1`. Testy jednostkowe obejmują ścieżkę od korzenia, odrzucanie błędnego `sort` i selektorów kategorii oraz składanie filtrów z wybranymi wartościami o liczniku `0`. Te próby nie zastępują automatycznego testu integracyjnego z PostgreSQL dla widoczności i historii cen.
 
-Po dodaniu odczytu cenowego ręczne próby HTTP na skonfigurowanym PostgreSQL sprawdziły `price-asc` i `price-desc`, oba końce zakresu oraz pojedyncze granice, granicę równą 90 PLN, wspólne dopasowanie SKU i ceny na jednym wariancie, liczniki `availableFilters` przy zakresie ceny, brak nakładania się dwóch stron oraz `400` dla ceny ujemnej, odwróconego zakresu i nadmiernej precyzji. Test jednostkowy w `ProductsEndpointTests.cs` sprawdza walidację zakresu przed dostępem do bazy. Nie ma jeszcze automatycznego testu integracyjnego historii zmian cen, braku PLN i współbieżnych zapisów na PostgreSQL.
+Po dodaniu odczytu cenowego ręczne próby HTTP na skonfigurowanym PostgreSQL sprawdziły `price-asc` i `price-desc`, oba końce zakresu oraz pojedyncze granice, granicę równą 90 PLN, wspólne dopasowanie SKU i ceny na jednym wariancie, liczniki `availableFilters` przy zakresie ceny, brak nakładania się dwóch stron oraz `400` dla ceny ujemnej, odwróconego zakresu i nadmiernej precyzji. Test jednostkowy w `ProductsEndpointTests.cs` sprawdza walidację zakresu przed dostępem do bazy. Automatyczny test integracyjny sprawdza przyszły wpis historii ceny i brak PLN; scenariusze współbieżnego zapisu pozostają do dodania.
 
 ## Stan potwierdzony
 
@@ -28,7 +41,7 @@ Po dodaniu odczytu cenowego ręczne próby HTTP na skonfigurowanym PostgreSQL sp
 
 Wyszukiwanie `q` sprawdzono ręcznie 23.10.2026 przez HTTP na skonfigurowanej bazie: fraza `czapka` i SKU `demo-cap-one` zwróciły po jednym produkcie w katalogu, a SKU także jeden produkt w `demo-akcesoria` i zero w `demo-odziez`. Przy stronicowaniu `totalItems` odzwierciedla wynik wyszukiwania. Puste `q` zachowało 262 produkty; dosłowne `%` i `_` nie zadziałały jak wieloznaczniki; 101 znaków dało `400`. Test jednostkowy sprawdza odrzucanie zbyt długiego `q` przed dostępem do bazy. Automatyczny test integracyjny wyszukiwania z PostgreSQL pozostaje do dodania.
 
-Filtry cech sprawdzono ręcznie 23.10.2026 przez HTTP na skonfigurowanej bazie we wcześniejszym formacie query. Następnie przeniesiono je do `POST /api/v1/web/products/search` z body JSON. Próba HTTP 26.10.2026 potwierdziła, że `demo-kolor=czerwony` i `demo-rozmiar=S` wraz z `q=Koszulka` dają jeden produkt, zaś po zamianie rozmiaru na `M` — zero, co potwierdza dopasowanie w obrębie jednego wariantu. SKU innego wariantu w `q` również daje zero. Filtr z `categorySlug=demo-akcesoria` zwrócił jeden produkt. Dwie wartości tego samego klucza działały jako alternatywa. Puste body `{}` zwróciło stronę 1 po 20 pozycji z `totalItems=262`. Po przebudowaniu API prosty GET z `q=Czapka` zwrócił jeden produkt, stary filtr cech w query dostał `400`, a nieznana `categorySlug` w POST dała `404`. Testy jednostkowe sprawdzają odrzucanie błędnego body i dawnego filtra w GET przed dostępem do bazy; automatyczny test integracyjny z PostgreSQL nadal pozostaje do dodania.
+Filtry cech sprawdzono ręcznie 23.10.2026 przez HTTP na skonfigurowanej bazie we wcześniejszym formacie query. Następnie przeniesiono je do `POST /api/v1/web/products/search` z body JSON. Próba HTTP 26.10.2026 potwierdziła, że `demo-kolor=czerwony` i `demo-rozmiar=S` wraz z `q=Koszulka` dają jeden produkt, zaś po zamianie rozmiaru na `M` — zero, co potwierdza dopasowanie w obrębie jednego wariantu. SKU innego wariantu w `q` również daje zero. Filtr z `categorySlug=demo-akcesoria` zwrócił jeden produkt. Dwie wartości tego samego klucza działały jako alternatywa. Puste body `{}` zwróciło stronę 1 po 20 pozycji z `totalItems=262`. Po przebudowaniu API prosty GET z `q=Czapka` zwrócił jeden produkt, stary filtr cech w query dostał `400`, a nieznana `categorySlug` w POST dała `404`. Testy jednostkowe sprawdzają odrzucanie błędnego body i dawnego filtra w GET przed dostępem do bazy; automatyczny test integracyjny PostgreSQL obejmuje dopasowanie cech i liczniki filtrów.
 
 ## Zasada na przyszłość
 

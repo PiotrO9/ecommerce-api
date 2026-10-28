@@ -19,6 +19,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
 - `docs/demo-seed.md` opisuje ręcznie uruchamiany, developerski seeder katalogu i jego zabezpieczenia.
 - `docs/seeder-maintenance.md` określa, jak rozbudowywać seeder razem ze zmianami modelu bazy.
+- `docs/catalog-performance-audit.md` zawiera pomiar odczytu katalogu na 5000 syntetycznych produktów przed optymalizacją i po niej.
 
 Przed rozpoczęciem zadania przeczytaj odpowiednie pliki. Kod i konfiguracja są źródłem prawdy o obecnym działaniu aplikacji. Jeśli dokumentacja i kod się różnią, wskaż rozbieżność i zaktualizuj dokumentację po ustaleniu stanu faktycznego.
 

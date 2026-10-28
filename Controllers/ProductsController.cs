@@ -42,7 +42,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         try
         {
-            return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], sort,
+            return Ok(await BuildListAsync(null, page, pageSize, q, [], sort,
                 minPrice, maxPrice,
                 DateTime.UtcNow, cancellationToken));
         }
@@ -209,7 +209,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         try
         {
-            IQueryable<Product> scope = database.Products;
+            IQueryable<Product>? scope = null;
             if (request.CategoryId.HasValue || request.CategorySlug is not null)
             {
                 var (branchIds, error) = await ResolveCategoryBranchAsync(request.CategoryId,
@@ -220,7 +220,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 }
 
                 var ids = branchIds!;
-                scope = scope.Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
+                scope = database.Products.Where(product => product.ProductCategories.Any(link =>
+                    ids.Contains(link.CategoryId)));
             }
 
             var now = DateTime.UtcNow;
@@ -409,25 +410,27 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         .Replace("_", @"\_") + "%";
 
     private IQueryable<VariantPriceChange> CurrentPlnPrices(DateTime now) =>
-        database.VariantPriceChanges.AsNoTracking()
-            .Where(price => price.Currency == "PLN" && price.EffectiveAt <= now &&
-                price.Id == database.VariantPriceChanges
-                    .Where(candidate => candidate.VariantId == price.VariantId &&
-                        candidate.Currency == "PLN" && candidate.EffectiveAt <= now)
-                    .OrderByDescending(candidate => candidate.EffectiveAt)
-                    .ThenByDescending(candidate => candidate.CreatedAt)
-                    .ThenByDescending(candidate => candidate.Id)
-                    .Select(candidate => candidate.Id).First());
+        database.VariantPriceChanges.FromSqlInterpolated($"""
+            SELECT DISTINCT ON (variant_id)
+                id, variant_id, base_amount, selling_amount, currency, effective_at, created_at, reason
+            FROM app.variant_price_changes
+            WHERE currency = 'PLN' AND effective_at <= {now}
+            ORDER BY variant_id, effective_at DESC, created_at DESC, id DESC
+            """).AsNoTracking();
 
-    private IQueryable<ProductVariant> MatchingVariants(IQueryable<Product> scope, DateTime now,
+    private IQueryable<ProductVariant> MatchingVariants(IQueryable<Product>? scope, DateTime now,
         string? q, (string Code, string Value)[] attributes, decimal? minPrice, decimal? maxPrice)
     {
         IQueryable<ProductVariant> variants = database.ProductVariants.AsNoTracking()
             .Where(variant => variant.Status == CatalogStatus.Published &&
                 variant.Product.Status == CatalogStatus.Published &&
                 variant.Product.ProductCategories.Any() &&
-                variant.PriceChanges.Any(price => price.EffectiveAt <= now) &&
-                scope.Any(product => product.Id == variant.ProductId));
+                variant.PriceChanges.Any(price => price.EffectiveAt <= now));
+
+        if (scope is not null)
+        {
+            variants = variants.Where(variant => scope.Any(product => product.Id == variant.ProductId));
+        }
 
         if (minPrice.HasValue || maxPrice.HasValue)
         {
@@ -458,7 +461,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     }
 
     private async Task<ProductSearchFilterResponse[]> BuildAvailableFiltersAsync(
-        IQueryable<Product> scope, string? q, (string Code, string Value)[] attributes,
+        IQueryable<Product>? scope, string? q, (string Code, string Value)[] attributes,
         decimal? minPrice, decimal? maxPrice, DateTime now, CancellationToken cancellationToken)
     {
         var baseVariants = MatchingVariants(scope, now, q, [], minPrice, maxPrice);
@@ -469,16 +472,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        var selectedCodes = attributes.Select(attribute => attribute.Code).Distinct().ToArray();
-        var rows = await CountFacetRowsAsync(MatchingVariants(scope, now, q, attributes, minPrice, maxPrice),
-            null, selectedCodes, cancellationToken);
-
-        foreach (var code in selectedCodes)
-        {
-            var otherAttributes = attributes.Where(attribute => attribute.Code != code).ToArray();
-            var matchingOthers = MatchingVariants(scope, now, q, otherAttributes, minPrice, maxPrice);
-            rows.AddRange(await CountFacetRowsAsync(matchingOthers, code, [], cancellationToken));
-        }
+        var rows = await CountFacetRowsAsync(baseVariants, attributes, cancellationToken);
 
         return ProductFacetResponseBuilder.Build(
             keys.Select(key => (key.Code, key.DisplayName)).ToArray(),
@@ -486,18 +480,19 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     }
 
     private async Task<List<FacetCountRow>> CountFacetRowsAsync(
-        IQueryable<ProductVariant> matchingVariants, string? includeCode, string[] excludeCodes,
+        IQueryable<ProductVariant> baseVariants, (string Code, string Value)[] attributes,
         CancellationToken cancellationToken)
     {
         var links = database.VariantAttributePairs.AsNoTracking()
-            .Where(link => matchingVariants.Any(variant => variant.Id == link.VariantId));
-        if (includeCode is not null)
+            .Where(link => baseVariants.Any(variant => variant.Id == link.VariantId));
+        foreach (var group in attributes.GroupBy(attribute => attribute.Code))
         {
-            links = links.Where(link => link.AttributePair.AttributeKey.Code == includeCode);
-        }
-        else if (excludeCodes.Length > 0)
-        {
-            links = links.Where(link => !excludeCodes.Contains(link.AttributePair.AttributeKey.Code));
+            var code = group.Key;
+            var values = group.Select(attribute => attribute.Value).ToArray();
+            links = links.Where(link => link.AttributePair.AttributeKey.Code == code ||
+                link.Variant.VariantAttributePairs.Any(other =>
+                    other.AttributePair.AttributeKey.Code == code &&
+                    values.Contains(other.AttributePair.Value)));
         }
 
         return await links.Select(link => new
@@ -516,7 +511,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
     private sealed record FacetCountRow(string Code, string Value, int Count);
 
-    private async Task<ProductListResponse> BuildListAsync(IQueryable<Product> scope,
+    private async Task<ProductListResponse> BuildListAsync(IQueryable<Product>? scope,
         int? page, int? pageSize, string? q, (string Code, string Value)[] attributes, string? sort,
         decimal? minPrice, decimal? maxPrice, DateTime now, CancellationToken cancellationToken)
     {
@@ -524,7 +519,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         var selectedPage = page ?? 1;
         var selectedPageSize = pageSize ?? 20;
         var matchingVariants = MatchingVariants(scope, now, q, attributes, minPrice, maxPrice);
-        IQueryable<Product> query = scope
+        var productScope = scope ?? database.Products;
+        IQueryable<Product> query = productScope
             .AsNoTracking()
             .AsSplitQuery()
             .Where(product => product.Status == CatalogStatus.Published &&
@@ -533,33 +529,41 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         var currentPlnPrices = CurrentPlnPrices(now);
         var pricesByProduct = matchingVariants
-            .Join(currentPlnPrices, variant => variant.Id, price => price.VariantId,
-                (variant, price) => new { variant.ProductId, price.SellingAmount })
+            .GroupJoin(currentPlnPrices, variant => variant.Id, price => price.VariantId,
+                (variant, prices) => new { variant.ProductId, prices })
+            .SelectMany(row => row.prices.DefaultIfEmpty(),
+                (row, price) => new { row.ProductId, Amount = (decimal?)price!.SellingAmount })
             .GroupBy(row => row.ProductId)
-            .Select(group => new { ProductId = group.Key, Amount = group.Min(row => row.SellingAmount) });
+            .Select(group => new { ProductId = group.Key, Amount = group.Min(row => row.Amount) });
+
+        int? totalCount = null;
+        if (paginated)
+        {
+            totalCount = await query.CountAsync(cancellationToken);
+        }
 
         query = sort switch
         {
             "name-desc" => query.OrderByDescending(product => product.Name).ThenBy(product => product.Id),
             "newest" => query.OrderByDescending(product => product.PublishedAt).ThenBy(product => product.Id),
             "oldest" => query.OrderBy(product => product.PublishedAt).ThenBy(product => product.Id),
-            "price-asc" => query
-                .OrderBy(product => !pricesByProduct.Any(price => price.ProductId == product.Id))
-                .ThenBy(product => pricesByProduct.Where(price => price.ProductId == product.Id)
-                    .Select(price => (decimal?)price.Amount).FirstOrDefault())
-                .ThenBy(product => product.Id),
-            "price-desc" => query
-                .OrderBy(product => !pricesByProduct.Any(price => price.ProductId == product.Id))
-                .ThenByDescending(product => pricesByProduct.Where(price => price.ProductId == product.Id)
-                    .Select(price => (decimal?)price.Amount).FirstOrDefault())
-                .ThenBy(product => product.Id),
+            "price-asc" =>
+                from product in productScope.AsNoTracking()
+                join price in pricesByProduct on product.Id equals price.ProductId
+                where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
+                orderby price.Amount == null, price.Amount, product.Id
+                select product,
+            "price-desc" =>
+                from product in productScope.AsNoTracking()
+                join price in pricesByProduct on product.Id equals price.ProductId
+                where product.Status == CatalogStatus.Published && product.ProductCategories.Any()
+                orderby price.Amount == null, price.Amount descending, product.Id
+                select product,
             _ => query.OrderBy(product => product.Name).ThenBy(product => product.Id)
         };
 
-        int? totalCount = null;
         if (paginated)
         {
-            totalCount = await query.CountAsync(cancellationToken);
             query = query.Skip((page.GetValueOrDefault(1) - 1) * selectedPageSize).Take(selectedPageSize);
         }
 

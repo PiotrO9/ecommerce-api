@@ -141,6 +141,11 @@ internal static class CatalogModelConfiguration
             price.Property(x => x.VariantId).HasColumnName("variant_id");
             price.HasOne(x => x.Variant).WithMany(x => x.PriceChanges).HasForeignKey(x => x.VariantId).OnDelete(DeleteBehavior.Restrict);
             price.HasIndex(x => new { x.VariantId, x.Currency, x.EffectiveAt, x.CreatedAt });
+            price.HasIndex(x => new { x.VariantId, x.EffectiveAt, x.CreatedAt, x.Id })
+                .HasDatabaseName("IX_variant_price_changes_current_pln")
+                .HasFilter("currency = 'PLN'")
+                .IsDescending(false, true, true, true)
+                .IncludeProperties(x => x.SellingAmount);
             price.Property(x => x.BaseAmount).HasColumnName("base_amount").HasPrecision(18, 2);
             price.Property(x => x.SellingAmount).HasColumnName("selling_amount").HasPrecision(18, 2);
             price.Property(x => x.Currency).HasColumnName("currency").HasColumnType("character(3)").HasDefaultValue("PLN").IsRequired();

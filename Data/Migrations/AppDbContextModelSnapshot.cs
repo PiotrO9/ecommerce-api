@@ -409,6 +409,13 @@ namespace E_commerce_backend.Data.Migrations
 
                     b.HasIndex("VariantId", "Currency", "EffectiveAt", "CreatedAt");
 
+                    b.HasIndex("VariantId", "EffectiveAt", "CreatedAt", "Id")
+                        .IsDescending(false, true, true, true)
+                        .HasDatabaseName("IX_variant_price_changes_current_pln")
+                        .HasFilter("currency = 'PLN'");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("VariantId", "EffectiveAt", "CreatedAt", "Id"), new[] { "SellingAmount" });
+
                     b.ToTable("variant_price_changes", "app", t =>
                         {
                             t.HasCheckConstraint("CK_variant_price_changes_amounts", "base_amount >= 0 AND selling_amount >= 0 AND selling_amount <= base_amount");

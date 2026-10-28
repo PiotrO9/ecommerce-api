@@ -59,6 +59,12 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
             product.PublishedAt = data.CreatedAt;
         }
         await database.SaveChangesAsync(cancellationToken);
+        // Po dużym TRUNCATE i zapisie planista potrzebuje statystyk nowego katalogu.
+        await database.Database.ExecuteSqlRawAsync("""
+            ANALYZE app.categories, app.products, app.product_categories,
+                app.product_variants, app.attribute_keys, app.attribute_pairs,
+                app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes
+            """, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         var created = data.Created;
