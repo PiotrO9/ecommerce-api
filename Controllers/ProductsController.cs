@@ -36,7 +36,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         try
         {
-            return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], sort, cancellationToken));
+            return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], sort,
+                DateTime.UtcNow, cancellationToken));
         }
         catch (NpgsqlException)
         {
@@ -138,7 +139,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             var ids = branchIds!;
             var scopedProducts = database.Products
                 .Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
-            return Ok(await BuildListAsync(scopedProducts, page, pageSize, q, [], sort, cancellationToken));
+            return Ok(await BuildListAsync(scopedProducts, page, pageSize, q, [], sort,
+                DateTime.UtcNow, cancellationToken));
         }
         catch (NpgsqlException)
         {
@@ -203,8 +205,12 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 scope = scope.Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
             }
 
-            return Ok(await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes,
-                request.Sort, cancellationToken));
+            var now = DateTime.UtcNow;
+            var list = await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes,
+                request.Sort, now, cancellationToken);
+            var filters = await BuildAvailableFiltersAsync(scope, request.Q, normalizedAttributes,
+                now, cancellationToken);
+            return Ok(new ProductSearchResponse(list.Items, list.Pagination, filters));
         }
         catch (NpgsqlException)
         {
@@ -376,54 +382,108 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         .Replace("%", @"\%")
         .Replace("_", @"\_") + "%";
 
+    private IQueryable<ProductVariant> MatchingVariants(IQueryable<Product> scope, DateTime now,
+        string? q, (string Code, string Value)[] attributes)
+    {
+        IQueryable<ProductVariant> variants = database.ProductVariants.AsNoTracking()
+            .Where(variant => variant.Status == CatalogStatus.Published &&
+                variant.Product.Status == CatalogStatus.Published &&
+                variant.Product.ProductCategories.Any() &&
+                variant.PriceChanges.Any(price => price.EffectiveAt <= now) &&
+                scope.Any(product => product.Id == variant.ProductId));
+
+        foreach (var group in attributes.GroupBy(attribute => attribute.Code))
+        {
+            var code = group.Key;
+            var values = group.Select(attribute => attribute.Value).ToArray();
+            variants = variants.Where(variant => variant.VariantAttributePairs.Any(link =>
+                link.AttributePair.AttributeKey.Code == code && values.Contains(link.AttributePair.Value)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(q))
+        {
+            var pattern = SearchPattern(q.Trim());
+            variants = variants.Where(variant =>
+                EF.Functions.ILike(variant.Product.Name, pattern, @"\") ||
+                EF.Functions.ILike(variant.SKU, pattern, @"\"));
+        }
+
+        return variants;
+    }
+
+    private async Task<ProductSearchFilterResponse[]> BuildAvailableFiltersAsync(
+        IQueryable<Product> scope, string? q, (string Code, string Value)[] attributes,
+        DateTime now, CancellationToken cancellationToken)
+    {
+        var baseVariants = MatchingVariants(scope, now, q, []);
+        var keys = await database.VariantAttributePairs.AsNoTracking()
+            .Where(link => baseVariants.Any(variant => variant.Id == link.VariantId))
+            .Select(link => new FacetKeyRow(link.AttributePair.AttributeKey.Code,
+                link.AttributePair.AttributeKey.DisplayName))
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var selectedCodes = attributes.Select(attribute => attribute.Code).Distinct().ToArray();
+        var rows = await CountFacetRowsAsync(MatchingVariants(scope, now, q, attributes),
+            null, selectedCodes, cancellationToken);
+
+        foreach (var code in selectedCodes)
+        {
+            var otherAttributes = attributes.Where(attribute => attribute.Code != code).ToArray();
+            var matchingOthers = MatchingVariants(scope, now, q, otherAttributes);
+            rows.AddRange(await CountFacetRowsAsync(matchingOthers, code, [], cancellationToken));
+        }
+
+        return ProductFacetResponseBuilder.Build(
+            keys.Select(key => (key.Code, key.DisplayName)).ToArray(),
+            rows.Select(row => (row.Code, row.Value, row.Count)).ToArray(), attributes);
+    }
+
+    private async Task<List<FacetCountRow>> CountFacetRowsAsync(
+        IQueryable<ProductVariant> matchingVariants, string? includeCode, string[] excludeCodes,
+        CancellationToken cancellationToken)
+    {
+        var links = database.VariantAttributePairs.AsNoTracking()
+            .Where(link => matchingVariants.Any(variant => variant.Id == link.VariantId));
+        if (includeCode is not null)
+        {
+            links = links.Where(link => link.AttributePair.AttributeKey.Code == includeCode);
+        }
+        else if (excludeCodes.Length > 0)
+        {
+            links = links.Where(link => !excludeCodes.Contains(link.AttributePair.AttributeKey.Code));
+        }
+
+        return await links.Select(link => new
+            {
+                link.AttributePair.AttributeKey.Code,
+                link.AttributePair.Value,
+                link.Variant.ProductId
+            })
+            .Distinct()
+            .GroupBy(item => new { item.Code, item.Value })
+            .Select(group => new FacetCountRow(group.Key.Code, group.Key.Value, group.Count()))
+            .ToListAsync(cancellationToken);
+    }
+
+    private sealed record FacetKeyRow(string Code, string DisplayName);
+
+    private sealed record FacetCountRow(string Code, string Value, int Count);
+
     private async Task<ProductListResponse> BuildListAsync(IQueryable<Product> scope,
         int? page, int? pageSize, string? q, (string Code, string Value)[] attributes, string? sort,
-        CancellationToken cancellationToken)
+        DateTime now, CancellationToken cancellationToken)
     {
         var paginated = page.HasValue || pageSize.HasValue;
         var selectedPage = page ?? 1;
         var selectedPageSize = pageSize ?? 20;
-        var now = DateTime.UtcNow;
+        var matchingVariants = MatchingVariants(scope, now, q, attributes);
         IQueryable<Product> query = scope
             .AsNoTracking()
             .AsSplitQuery()
             .Where(product => product.Status == CatalogStatus.Published &&
                 product.ProductCategories.Any() &&
-                product.Variants.Any(variant => variant.Status == CatalogStatus.Published &&
-                    variant.PriceChanges.Any(price => price.EffectiveAt <= now)));
-
-        if (attributes.Length > 0)
-        {
-            IQueryable<ProductVariant> matchingVariants = database.ProductVariants
-                .Where(variant => variant.Status == CatalogStatus.Published &&
-                    variant.PriceChanges.Any(price => price.EffectiveAt <= now));
-
-            foreach (var group in attributes.GroupBy(attribute => attribute.Code))
-            {
-                var code = group.Key;
-                var values = group.Select(attribute => attribute.Value).ToArray();
-                matchingVariants = matchingVariants.Where(variant => variant.VariantAttributePairs.Any(link =>
-                    link.AttributePair.AttributeKey.Code == code && values.Contains(link.AttributePair.Value)));
-            }
-
-            query = query.Where(product => matchingVariants.Any(variant => variant.ProductId == product.Id));
-
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var pattern = SearchPattern(q.Trim());
-                query = query.Where(product => EF.Functions.ILike(product.Name, pattern, @"\") ||
-                    matchingVariants.Any(variant => variant.ProductId == product.Id &&
-                        EF.Functions.ILike(variant.SKU, pattern, @"\")));
-            }
-        }
-        else if (!string.IsNullOrWhiteSpace(q))
-        {
-            var pattern = SearchPattern(q.Trim());
-            query = query.Where(product => EF.Functions.ILike(product.Name, pattern, @"\") ||
-                product.Variants.Any(variant => variant.Status == CatalogStatus.Published &&
-                    variant.PriceChanges.Any(price => price.EffectiveAt <= now) &&
-                    EF.Functions.ILike(variant.SKU, pattern, @"\")));
-        }
+                matchingVariants.Any(variant => variant.ProductId == product.Id));
 
         query = sort switch
         {

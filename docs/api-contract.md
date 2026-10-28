@@ -15,7 +15,7 @@ Wszystkie trasy kontrolerów zaczynają się od `/api/v1/web`. Pola JSON mają n
 | `GET /api/v1/web/products/filter-options` | Bez logowania; opcjonalne `categoryId` albo `slug` kategorii | `200`, tablica kluczy cech z nazwami i dostępnymi wartościami | `400` dla obu selektorów, pustego slugu lub błędnego UUID; `404` dla nieznanej kategorii; `409` dla niejednoznacznego slugu; `503` przy niedostępnej bazie |
 | `GET /api/v1/web/products/catalog` | Bez logowania; opcjonalne `q`, `sort`, `page` i `pageSize` | `200`, obiekt z lekkimi `items` oraz `pagination` | `400` dla błędnego `q`, `sort`, stronicowania lub dawnego filtra `attributes` w query; `503` przy niedostępnej bazie |
 | `GET /api/v1/web/products/by-category?categoryId={uuid}` lub `?slug={slug}` | Bez logowania; dokładnie jeden parametr query: `categoryId` (UUID) albo `slug` kategorii; opcjonalne `q`, `sort`, `page` i `pageSize` | `200`, obiekt z lekkimi `items` oraz `pagination` | `400` dla błędnego selektora kategorii, `q`, `sort`, stronicowania lub dawnego filtra `attributes` w query; `404` dla nieznanej kategorii; `409` dla niejednoznacznego slugu; `503` przy niedostępnej bazie |
-| `POST /api/v1/web/products/search` | Bez logowania; JSON z opcjonalnymi `q`, `categoryId` albo `categorySlug`, `attributes`, `sort`, `page` i `pageSize` | `200`, ten sam obiekt `items` i `pagination` co listy GET | `400` dla błędnego body, parametrów lub filtrów; `404` dla nieznanej kategorii; `409` dla niejednoznacznego slugu kategorii; `503` przy niedostępnej bazie |
+| `POST /api/v1/web/products/search` | Bez logowania; JSON z opcjonalnymi `q`, `categoryId` albo `categorySlug`, `attributes`, `sort`, `page` i `pageSize` | `200`, `items`, `pagination` i `availableFilters` z licznikami | `400` dla błędnego body, parametrów lub filtrów; `404` dla nieznanej kategorii; `409` dla niejednoznacznego slugu kategorii; `503` przy niedostępnej bazie |
 | `POST /api/v1/web/auth/register` | `email`, `password`, `confirmPassword` | `201`, bez sesji w odpowiedzi | `400` dla znanych błędów danych/hasła, `409` dla rozpoznanego istniejącego adresu, `429` dla limitu, `503` dla niedostępnej lub nieznanej odpowiedzi usługi |
 | `POST /api/v1/web/auth/login` | `email`, `password`, opcjonalne `rememberMe` (domyślnie `false`) | `200` z pustym body i ciasteczkiem sesji | `401` dla rozpoznanych błędnych danych, `429` dla limitu, `503` dla niedostępnej lub nieznanej odpowiedzi usługi |
 | `POST /api/v1/web/auth/password-reset/request` | `email` | `202` z pustym body, niezależnie od istnienia konta i wyniku dostarczenia | `400` dla niepoprawnego formatu e-maila; `429` po przekroczeniu limitu żądań |
@@ -61,6 +61,22 @@ Zaawansowane wyszukiwanie używa `POST /api/v1/web/products/search` z body JSON.
 ```
 
 Filtr cech przyjmuje dowolne istniejące kody i wartości par, bez stałej listy kluczy. Można przekazać maksymalnie 10 obiektów `attributes` i łącznie 30 wartości. `code` i każdy element `values` są wymagane i przycinane z białych znaków na brzegach; długości po przycięciu to maksymalnie 100 znaków dla kodu i 255 dla wartości. Kod jest sprowadzany do małych liter; wartość jest porównywana dokładnie, z rozróżnieniem wielkości liter. Wiele wartości jednego kodu oznacza „dowolna z nich”, różne kody oznaczają „wszystkie”. Wszystkie warunki muszą pasować do jednego opublikowanego wariantu z obowiązującą ceną. Gdy `q` trafia w SKU i podano filtry, SKU oraz cechy muszą pochodzić z tego samego wariantu. Odpowiedź zawiera lekkie pozycje pasujących produktów. Nieznana para daje pustą listę. Filtry działają przed obliczeniem `totalItems` i wybraniem strony. Stary format `attributes[index]` w query endpointów GET jest odrzucany odpowiedzią `400`.
+
+`availableFilters` w odpowiedzi `POST /products/search` jest tablicą `{code, displayName, values}`. Każdy element `values` ma `{value, count, selected}`. `count` oznacza liczbę **różnych produktów**, które można otrzymać po zastąpieniu wyboru danego klucza tą jedną wartością; produkt z kilkoma pasującymi wariantami liczy się raz. Przy liczeniu wartości jednego klucza stosuje się kategorię, `q` i wszystkie filtry **innych** kluczy, pomijając obecny wybór tego klucza. Kilka wartości tego samego klucza w żądaniu nadal łączy się przez OR. Wszystkie warunki cech oraz trafienie `q` w SKU muszą dotyczyć tego samego widocznego, wycenionego wariantu. Liczniki obejmują cały wynik, niezależnie od `page`, `pageSize` i `sort`. Wartość wybrana w żądaniu zawsze pojawia się z `selected=true`, także gdy jej `count` wynosi `0`. Gdy kod cechy nie istnieje, `displayName` przyjmuje jego kod. Klucze bez żadnej dostępnej lub wybranej wartości są pomijane. Osobny `GET /products/filter-options` nadal podaje statyczny słownik dla katalogu lub kategorii, bez `q` i wybranych filtrów.
+
+```json
+{
+  "items": [],
+  "pagination": { "page": 1, "pageSize": 20, "totalItems": 0, "totalPages": 0,
+    "hasPreviousPage": false, "hasNextPage": false },
+  "availableFilters": [
+    { "code": "demo-kolor", "displayName": "Kolor", "values": [
+      { "value": "czerwony", "count": 0, "selected": true },
+      { "value": "niebieski", "count": 1, "selected": false }
+    ] }
+  ]
+}
+```
 
 Stronicowanie obu list produktów jest opcjonalne. Bez `page` i `pageSize` pole `items` zawiera wszystkie pasujące produkty, a `pagination` ma wartość `null`. Po podaniu któregokolwiek parametru brakujące wartości wynoszą `page=1` i `pageSize=20`. Strony liczymy od 1, a `pageSize` musi mieścić się w zakresie 1–100; strona po ostatniej daje `items: []`, o ile jej przesunięcie mieści się w zakresie typu `int`. Filtrowanie widoczności odbywa się przed liczeniem i wyborem strony. Pole `pagination` zawiera `page`, `pageSize`, `totalItems`, `totalPages`, `hasPreviousPage` i `hasNextPage`. Przykłady: `GET /api/v1/web/products/catalog?page=2&pageSize=20` oraz `GET /api/v1/web/products/by-category?slug=demo-odziez&page=2&pageSize=20`. Klienci powinni czytać produkty z `items`.
 

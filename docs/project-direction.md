@@ -133,6 +133,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Dodać opcjonalne wyszukiwanie `q` po nazwie produktu i SKU widocznego wariantu do ogólnej listy i listy według kategorii, z użyciem PostgreSQL `ILIKE` przed stronicowaniem.
 - [x] Dodać `POST /api/v1/web/products/search` z JSON-em zawierającym filtry po dowolnych parach klucz–wartość widocznego wariantu, `q`, kategorię i stronicowanie.
 - [x] Udostępnić dostępne klucze i wartości cech przez `GET /api/v1/web/products/filter-options`, z opcjonalnym ograniczeniem do poddrzewa kategorii.
+- [x] Dodać do `POST /api/v1/web/products/search` kontekstowe opcje filtrów z liczbą pasujących produktów, z pominięciem własnego wyboru przy liczeniu alternatyw klucza.
 - [x] Zwracać lekkie pozycje produktu w listach i wyszukiwaniu, zachowując pełny model w szczegółach.
 - [x] Dodać sortowanie list po nazwie i dacie publikacji.
 - [ ] Ustalić walutę i regułę sortowania po cenie produktu z wieloma wariantami.
