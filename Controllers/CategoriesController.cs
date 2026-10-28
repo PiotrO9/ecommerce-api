@@ -35,20 +35,14 @@ public sealed class CategoriesController(AppDbContext database) : WebApiControll
     {
         try
         {
-            var category = await database.Categories.AsNoTracking()
-                .Where(category => category.Id == id)
-                .Select(category => new CategoryDetailsResponse(
-                    category.Id,
-                    category.DisplayName,
-                    category.Slug,
-                    category.ParentId,
-                    category.CreatedAt,
-                    category.UpdatedAt))
-                .SingleOrDefaultAsync(cancellationToken);
+            var categories = await database.Categories.AsNoTracking().ToListAsync(cancellationToken);
+            var category = categories.SingleOrDefault(category => category.Id == id);
+            var path = CategoryTreeBuilder.GetPath(categories, id);
 
             return category is null
                 ? NotFound(new { message = "Nie znaleziono kategorii." })
-                : Ok(category);
+                : Ok(new CategoryDetailsResponse(category.Id, category.DisplayName, category.Slug,
+                    category.ParentId, category.CreatedAt, category.UpdatedAt, path!));
         }
         catch (NpgsqlException)
         {

@@ -12,7 +12,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 {
     [HttpGet("catalog")]
     public async Task<IActionResult> GetCatalog([FromQuery] int? page, [FromQuery] int? pageSize,
-        [FromQuery] string? q, CancellationToken cancellationToken)
+        [FromQuery] string? q, [FromQuery] string? sort, CancellationToken cancellationToken)
     {
         if (HasAttributeFiltersInQuery())
         {
@@ -29,9 +29,14 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             return BadRequest(new { message = "q może mieć maksymalnie 100 znaków po usunięciu skrajnych białych znaków." });
         }
 
+        if (InvalidSort(sort))
+        {
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+        }
+
         try
         {
-            return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], cancellationToken));
+            return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], sort, cancellationToken));
         }
         catch (NpgsqlException)
         {
@@ -94,7 +99,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
     [HttpGet("by-category")]
     public async Task<IActionResult> GetByCategory([FromQuery] Guid? categoryId, [FromQuery] string? slug,
-        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? q,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? q, [FromQuery] string? sort,
         CancellationToken cancellationToken)
     {
         if (HasAttributeFiltersInQuery())
@@ -117,6 +122,11 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             return BadRequest(new { message = "q może mieć maksymalnie 100 znaków po usunięciu skrajnych białych znaków." });
         }
 
+        if (InvalidSort(sort))
+        {
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+        }
+
         try
         {
             var (branchIds, error) = await ResolveCategoryBranchAsync(categoryId, slug, cancellationToken);
@@ -128,7 +138,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             var ids = branchIds!;
             var scopedProducts = database.Products
                 .Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
-            return Ok(await BuildListAsync(scopedProducts, page, pageSize, q, [], cancellationToken));
+            return Ok(await BuildListAsync(scopedProducts, page, pageSize, q, [], sort, cancellationToken));
         }
         catch (NpgsqlException)
         {
@@ -161,6 +171,11 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             return BadRequest(new { message = "q może mieć maksymalnie 100 znaków po usunięciu skrajnych białych znaków." });
         }
 
+        if (InvalidSort(request.Sort))
+        {
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+        }
+
         if (request.CategoryId.HasValue && request.CategorySlug is not null ||
             request.CategorySlug is not null && string.IsNullOrWhiteSpace(request.CategorySlug))
         {
@@ -188,7 +203,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 scope = scope.Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
             }
 
-            return Ok(await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes, cancellationToken));
+            return Ok(await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes,
+                request.Sort, cancellationToken));
         }
         catch (NpgsqlException)
         {
@@ -197,6 +213,73 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         catch (TimeoutException)
         {
             return StatusCode(503, new { message = "Produkty są chwilowo niedostępne." });
+        }
+    }
+
+    [HttpGet("filter-options")]
+    public async Task<IActionResult> GetFilterOptions([FromQuery] Guid? categoryId,
+        [FromQuery] string? slug, CancellationToken cancellationToken)
+    {
+        if (categoryId.HasValue && slug is not null ||
+            slug is not null && string.IsNullOrWhiteSpace(slug))
+        {
+            return BadRequest(new { message = "Podaj categoryId albo slug, nie oba naraz; slug nie może być pusty." });
+        }
+
+        try
+        {
+            Guid[]? branchIds = null;
+            if (categoryId.HasValue || slug is not null)
+            {
+                var (ids, error) = await ResolveCategoryBranchAsync(categoryId, slug, cancellationToken);
+                if (error is not null)
+                {
+                    return error;
+                }
+
+                branchIds = ids;
+            }
+
+            var now = DateTime.UtcNow;
+            var links = database.VariantAttributePairs.AsNoTracking()
+                .Where(link => link.Variant.Status == CatalogStatus.Published &&
+                    link.Variant.Product.Status == CatalogStatus.Published &&
+                    link.Variant.Product.ProductCategories.Any() &&
+                    link.Variant.PriceChanges.Any(price => price.EffectiveAt <= now));
+
+            if (branchIds is not null)
+            {
+                var ids = branchIds;
+                links = links.Where(link => link.Variant.Product.ProductCategories.Any(
+                    category => ids.Contains(category.CategoryId)));
+            }
+
+            var pairs = await links.Select(link => new
+                {
+                    link.AttributePair.AttributeKey.Code,
+                    link.AttributePair.AttributeKey.DisplayName,
+                    link.AttributePair.Value
+                })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var options = pairs.GroupBy(pair => new { pair.Code, pair.DisplayName })
+                .OrderBy(group => group.Key.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(group => group.Key.Code, StringComparer.Ordinal)
+                .Select(group => new ProductFilterOptionResponse(group.Key.Code,
+                    group.Key.DisplayName,
+                    group.Select(pair => pair.Value).OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .ToArray()))
+                .ToArray();
+            return Ok(options);
+        }
+        catch (NpgsqlException)
+        {
+            return StatusCode(503, new { message = "Filtry są chwilowo niedostępne." });
+        }
+        catch (TimeoutException)
+        {
+            return StatusCode(503, new { message = "Filtry są chwilowo niedostępne." });
         }
     }
 
@@ -241,6 +324,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     }
 
     private static bool InvalidSearch(string? q) => q?.Trim().Length > 100;
+
+    private static bool InvalidSort(string? sort) => sort is not null &&
+        sort is not ("name-asc" or "name-desc" or "newest" or "oldest");
 
     private bool HasAttributeFiltersInQuery() => HttpContext?.Request.Query.Keys.Any(key =>
         key.StartsWith("attributes", StringComparison.OrdinalIgnoreCase)) == true;
@@ -291,7 +377,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         .Replace("_", @"\_") + "%";
 
     private async Task<ProductListResponse> BuildListAsync(IQueryable<Product> scope,
-        int? page, int? pageSize, string? q, (string Code, string Value)[] attributes,
+        int? page, int? pageSize, string? q, (string Code, string Value)[] attributes, string? sort,
         CancellationToken cancellationToken)
     {
         var paginated = page.HasValue || pageSize.HasValue;
@@ -339,7 +425,13 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                     EF.Functions.ILike(variant.SKU, pattern, @"\")));
         }
 
-        query = query.OrderBy(product => product.Name).ThenBy(product => product.Id);
+        query = sort switch
+        {
+            "name-desc" => query.OrderByDescending(product => product.Name).ThenBy(product => product.Id),
+            "newest" => query.OrderByDescending(product => product.PublishedAt).ThenBy(product => product.Id),
+            "oldest" => query.OrderBy(product => product.PublishedAt).ThenBy(product => product.Id),
+            _ => query.OrderBy(product => product.Name).ThenBy(product => product.Id)
+        };
 
         int? totalCount = null;
         if (paginated)
@@ -348,23 +440,47 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             query = query.Skip((page.GetValueOrDefault(1) - 1) * selectedPageSize).Take(selectedPageSize);
         }
 
-        var products = await query
-            .Include(product => product.ProductCategories)
-                .ThenInclude(link => link.Category)
-            .Include(product => product.Variants)
-                .ThenInclude(variant => variant.Stock)
-            .Include(product => product.Variants)
-                .ThenInclude(variant => variant.PriceChanges.Where(price => price.EffectiveAt <= now))
-            .Include(product => product.Variants)
-                .ThenInclude(variant => variant.VariantAttributePairs)
-                    .ThenInclude(link => link.AttributePair)
-                        .ThenInclude(pair => pair.AttributeKey)
+        var products = await query.Select(product => new
+            {
+                product.Id, product.Name, product.Slug
+            }).ToListAsync(cancellationToken);
+        var productIds = products.Select(product => product.Id).ToArray();
+        var variants = await database.ProductVariants.AsNoTracking()
+            .Where(variant => productIds.Contains(variant.ProductId) &&
+                variant.Status == CatalogStatus.Published &&
+                variant.PriceChanges.Any(price => price.EffectiveAt <= now))
+            .Select(variant => new { variant.Id, variant.ProductId, variant.SKU, variant.ImageUrls })
             .ToListAsync(cancellationToken);
-
-        var items = products
-            .Select(product => ProductDetailsBuilder.Build(product, now))
-            .OfType<ProductDetailsResponse>()
-            .ToArray();
+        var variantIds = variants.Select(variant => variant.Id).ToArray();
+        var prices = await database.VariantPriceChanges.AsNoTracking()
+            .Where(price => variantIds.Contains(price.VariantId) && price.EffectiveAt <= now &&
+                price.Id == database.VariantPriceChanges
+                    .Where(candidate => candidate.VariantId == price.VariantId &&
+                        candidate.Currency == price.Currency && candidate.EffectiveAt <= now)
+                    .OrderByDescending(candidate => candidate.EffectiveAt)
+                    .ThenByDescending(candidate => candidate.CreatedAt)
+                    .ThenByDescending(candidate => candidate.Id)
+                    .Select(candidate => candidate.Id).First())
+            .Select(price => new { price.VariantId, price.Currency, price.SellingAmount })
+            .ToListAsync(cancellationToken);
+        var variantsByProduct = variants.GroupBy(variant => variant.ProductId)
+            .ToDictionary(group => group.Key, group => group.OrderBy(variant => variant.SKU,
+                StringComparer.Ordinal).ToArray());
+        var pricesByVariant = prices.GroupBy(price => price.VariantId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+        var items = products.Select(product =>
+        {
+            var productVariants = variantsByProduct.GetValueOrDefault(product.Id) ?? [];
+            var thumbnail = productVariants.SelectMany(variant => variant.ImageUrls).FirstOrDefault();
+            var pricesFrom = productVariants
+                .SelectMany(variant => pricesByVariant.GetValueOrDefault(variant.Id) ?? [])
+                .GroupBy(price => price.Currency, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new ProductVariantPriceResponse(group.Min(price => price.SellingAmount),
+                    group.Key)).ToArray();
+            return new ProductListItemResponse(product.Id, product.Name, product.Slug,
+                thumbnail, pricesFrom);
+        }).ToArray();
 
         ProductListPaginationResponse? pagination = null;
         if (totalCount is int count)

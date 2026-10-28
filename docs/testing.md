@@ -2,6 +2,8 @@
 
 Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 
+Próba odczytu z 28.10.2026 na skonfigurowanej bazie sprawdziła: lekkie `items` i `pricesFrom` w katalogu (262 produkty), opcje cech dla `demo-odziez`, filtrowanie POST po cesze z `sort=newest`, `sort=name-desc` w GET, ścieżkę kategorii oraz niezmieniony pełny odczyt szczegółów. Testy jednostkowe obejmują teraz ścieżkę od korzenia i odrzucanie błędnego `sort` oraz selektorów kategorii w opcjach filtrów. Te próby nie zastępują automatycznego testu integracyjnego z PostgreSQL dla widoczności i historii cen.
+
 ## Stan potwierdzony
 
 - Rozwiązanie `E-commerce-backend.slnx` zawiera aplikację API oraz projekt xUnit `tests/E-commerce-backend.Tests`.

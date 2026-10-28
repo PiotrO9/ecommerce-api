@@ -1,8 +1,15 @@
 namespace E_commerce_backend.Contracts.Catalog;
 
 public sealed record ProductListResponse(
-    IReadOnlyList<ProductDetailsResponse> Items,
+    IReadOnlyList<ProductListItemResponse> Items,
     ProductListPaginationResponse? Pagination);
+
+public sealed record ProductListItemResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string? ThumbnailUrl,
+    IReadOnlyList<ProductVariantPriceResponse> PricesFrom);
 
 public sealed record ProductListPaginationResponse(
     int Page,

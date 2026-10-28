@@ -6,4 +6,7 @@ public sealed record CategoryDetailsResponse(
     string Slug,
     Guid? ParentId,
     DateTime CreatedAt,
-    DateTime UpdatedAt);
+    DateTime UpdatedAt,
+    IReadOnlyList<CategoryPathItemResponse> Path);
+
+public sealed record CategoryPathItemResponse(Guid Id, string DisplayName, string Slug);

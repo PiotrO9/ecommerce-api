@@ -120,6 +120,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Udostępnić odczyt całego drzewa kategorii oraz poddrzewa od wskazanej kategorii przez `GET /api/v1/web/categories`.
 - [x] Udostępnić dane pojedynczej kategorii po UUID przez `GET /api/v1/web/categories/{id}`.
 - [x] Udostępnić produkty przypisane do kategorii i jej potomków przez `GET /api/v1/web/products/by-category`, z opcjonalnym stronicowaniem.
+- [x] Dodać ścieżkę przodków od korzenia do wybranej kategorii w `GET /api/v1/web/categories/{id}`.
 - [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy i operacje drzewa.
 - [ ] Przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
 
@@ -131,6 +132,10 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [ ] Dodać minimalne operacje administracyjne potrzebne do wprowadzenia i aktualizacji oferty.
 - [x] Dodać opcjonalne wyszukiwanie `q` po nazwie produktu i SKU widocznego wariantu do ogólnej listy i listy według kategorii, z użyciem PostgreSQL `ILIKE` przed stronicowaniem.
 - [x] Dodać `POST /api/v1/web/products/search` z JSON-em zawierającym filtry po dowolnych parach klucz–wartość widocznego wariantu, `q`, kategorię i stronicowanie.
+- [x] Udostępnić dostępne klucze i wartości cech przez `GET /api/v1/web/products/filter-options`, z opcjonalnym ograniczeniem do poddrzewa kategorii.
+- [x] Zwracać lekkie pozycje produktu w listach i wyszukiwaniu, zachowując pełny model w szczegółach.
+- [x] Dodać sortowanie list po nazwie i dacie publikacji.
+- [ ] Ustalić walutę i regułę sortowania po cenie produktu z wieloma wariantami.
 - [ ] Ustalić, czy i jak oceniać trafność wyników wyszukiwania.
 - [ ] Uwzględnić ustalony stan magazynowy per wariant w przyszłej logice zakupu; brak znanego stanu ma blokować zakup.
 - [ ] Dodać testy reguł katalogu i sprawdzić rzeczywiste połączenie widoków frontendu z API.

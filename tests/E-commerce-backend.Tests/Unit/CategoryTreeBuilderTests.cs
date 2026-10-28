@@ -54,6 +54,16 @@ public sealed class CategoryTreeBuilderTests
         Assert.Empty(CategoryTreeBuilder.Build([], null)!);
     }
 
+    [Fact]
+    public void PathRunsFromRootToSelectedCategory()
+    {
+        var path = CategoryTreeBuilder.GetPath(Categories(), _cId)!;
+
+        Assert.Equal([_aId, _bId, _cId], path.Select(item => item.Id));
+        Assert.Equal(["a", "b", "c"], path.Select(item => item.Slug));
+        Assert.Null(CategoryTreeBuilder.GetPath(Categories(), Guid.NewGuid()));
+    }
+
     private List<Category> Categories() =>
     [
         new() { Id = _cId, ParentId = _bId, DisplayName = "Kategoria C", Slug = "c" },
