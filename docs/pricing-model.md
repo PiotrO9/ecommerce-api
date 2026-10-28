@@ -49,10 +49,35 @@ Reguły promocji będą osobnym modelem. Kiedy promocja zacznie, zmieni lub prze
 
 Według [informacji UOKiK o obniżkach](https://prawakonsumenta.uokik.gov.pl/prawo-do-informacji/informacje-o-obnizkach-cen/) przy informowaniu o obniżce należy pokazać najniższą cenę obowiązującą w okresie 30 dni przed jej wprowadzeniem; dla oferty krótszej niż 30 dni liczy się okres od rozpoczęcia sprzedaży. [UOKiK zwraca też uwagę](https://www.uokik.gov.pl/public/tajemnicze-i-zwodnicze-promocje-na-temu) na spójność tej informacji między wariantami i przy kolejnych zmianach cen promocyjnych. Szczegółową interpretację dla wybranych rodzajów promocji trzeba sprawdzić przed wdrożeniem.
 
+## Odczyt cen w katalogu
+
+Cel: opisać wdrożone sortowanie i filtrowanie list produktów po bieżącej cenie, bez operacji zapisu. Stan poniżej jest potwierdzony w kodzie i ręcznych próbach HTTP z PostgreSQL. Źródło założenia walutowego: właściciel projektu, 28.10.2026. Pełny format żądań i odpowiedzi opisuje [kontrakt API](api-contract.md).
+
+### Przyjęte założenie
+
+W odczycie katalogu porównujemy wyłącznie bieżące kwoty `selling_amount` w `PLN`. Pole `currency` i historia cen pozostają w schemacie; ta decyzja nie oznacza jeszcze zakazu zapisywania innych walut w przyszłych operacjach administracyjnych. Nie przeliczamy walut. Produkt z samymi cenami w innej walucie nie spełni filtra cenowego; przy sortowaniu po cenie trafi na koniec listy, za produkty z ceną `PLN`, w obu kierunkach sortowania.
+
+### Reguła ceny produktu
+
+- Cena należy do **wariantu**. Dla każdego wariantu wybieramy ostatni rekord `PLN` z `effective_at <= now`, rozstrzygając remisy przez `created_at` i `id`. Bierzemy `selling_amount`; przyszłe rekordy i historyczne kwoty nie wpływają na bieżący wynik.
+- Jedną ceną produktu używaną do sortowania jest **najniższa bieżąca cena kwalifikującego się wariantu**. Tę samą regułę stosujemy przy `price-asc` i `price-desc`; kierunek sortowania nie zmienia jej na maksimum. Remisy rozstrzyga `product.id`, aby strony miały stabilną kolejność.
+- Filtr `minPrice`/`maxPrice` jest domknięty (`>=` / `<=`) i sprawdza cenę **tego samego wariantu**, który spełnia filtry cech i ewentualne trafienie `q` w SKU. Warianty ukryte, bez obecnej ceny lub bez ceny `PLN` nie kwalifikują się. Dopasowanie `q` do nazwy produktu dopuszcza każdy kwalifikujący się wariant.
+- Przy wyszukiwaniu `pricesFrom` i miniatura na kafelku wynikają z wariantów spełniających cały aktualny zestaw warunków, także `q` trafiające w SKU. Przy aktywnym zakresie ceny kafelek zwraca wyłącznie kwotę w PLN. Liczniki `availableFilters` uwzględniają zakres ceny, zachowując zasadę pomijania własnego filtra cechy.
+- Zakres ceny służy wyszukiwaniu bieżącej oferty. Nie oblicza minimum sprzed obniżki i nie zastępuje późniejszego wymogu Omnibus; historia cen pozostaje nienaruszona.
+
+### Wdrożenie i granica weryfikacji
+
+- `GET /products/catalog` i `GET /products/by-category` przyjmują `minPrice` i `maxPrice` w query; `POST /products/search` przyjmuje je w JSON. Wszystkie trzy przyjmują `sort=price-asc` lub `price-desc`. Granice są domknięte; dozwolone są kwoty nieujemne z dokładnością do 0,01 i w zakresie `numeric(18,2)`. Odwrócony lub błędny zakres daje `400`.
+- Wspólne zapytanie o ostatnią obowiązującą cenę PLN wariantu uczestniczy w dopasowaniu i sortowaniu. Najniższa cena produktu jest wyznaczana w PostgreSQL przed stronicowaniem; historia nie jest pobierana w całości do pamięci tylko po to, by sortować. `GET /products/filter-options` pozostaje ogólnym słownikiem bez zakresu ceny.
+- Ręczne próby HTTP z PostgreSQL potwierdziły sortowanie w obu kierunkach, filtrowanie z jedną lub dwiema granicami, granicę równą 90 PLN, zgodność ceny z wariantem trafionym przez SKU i cechy, liczniki filtrów, brak nakładania stron oraz `400` dla błędnych kwot. Test jednostkowy sprawdza walidację zakresu przed dostępem do bazy.
+- Nie ma jeszcze automatycznego testu integracyjnego z PostgreSQL dla zmian cen w czasie, braku PLN i współbieżnych zapisów. Dane demonstracyjne nie pokrywają wszystkich tych przypadków.
+
+Zmiana dotyczy wyłącznie odczytu. Nie zmienia schematu bazy ani seedera.
+
 ## Pytania otwarte
 
 1. Jakie przejścia między `Draft`, `Published` i `Hidden` dopuszczać oraz czy `PublishedAt` oznacza pierwszą czy ostatnią publikację?
-2. Czy na starcie sklep sprzedaje wyłącznie w PLN, pozostawiając pole waluty na przyszłość, czy dopuszcza równoczesne ceny w kilku walutach?
+2. Dla planowanego odczytu katalogu przyjęto tymczasowo wyłącznie `PLN`. Czy zapis cen i cały proces sprzedaży mają formalnie blokować inne waluty? Tego nie ustalono; pole waluty pozostaje w modelu.
 3. W bazie przyjęto `numeric(18,2)`. Jaka jest zasada zaokrąglania w obliczeniach i czy przechowujemy cenę brutto, netto, czy obie?
 4. Czy zmiana ceny może być zaplanowana na przyszłość? Jak obsłużyć równoczesne zmiany ceny tego samego wariantu?
 5. Jak powiązać zmianę ceny z regułą promocji, obsłużyć nakładanie promocji oraz rabaty zależne od koszyka lub klienta? Jak niezawodnie dopisywać rekordy przy rozpoczęciu i zakończeniu promocji?

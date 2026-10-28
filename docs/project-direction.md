@@ -62,7 +62,16 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 
 Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 → 7.1 → 3.1 → 2.5 → 2.6 → 2.7**. Wstępne ustalenie pól produktu w **2.1** jest zakończone; implementacja pozostaje w **2.2**. Numery 7.1 i 3.1 pojawiają się przed administracyjnym zapisem oferty, bo potrzebne są uprawnienia administratora i historia cen. Próbę **0.4** wykonajcie po ustaleniu środowiska z **1.3**. Etapy **8.1** i potrzebną część **8.2** warto włączyć przed wspólnym środowiskiem testowym. Pozostałe zależności i szczegółowe prace opisują moduły niżej.
 
-**Najbliższy krok:** przetestować ograniczenia zastosowanej migracji na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Później pozostają koszyk (4.1–4.2), zamówienie z pozycjami (5.1), promocje (3.2) oraz dane dostawy i płatności (6).
+**Długofalowa ścieżka:** przetestować ograniczenia zastosowanej migracji na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie w PLN w odczycie katalogu jest wdrożone; granice weryfikacji opisuje [model cen](pricing-model.md#odczyt-cen-w-katalogu). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Później pozostają koszyk (4.1–4.2), zamówienie z pozycjami (5.1), promocje (3.2) oraz dane dostawy i płatności (6).
+
+### Kolejne ulepszenia odczytu katalogu
+
+Lista propozycji zaakceptowana do zachowania przez właściciela projektu 28.10.2026. Punkt 3 jest wdrożony; punkty 1, 2 i 4 pozostają do późniejszej realizacji. To priorytety dla odczytu, a nie zmiana kolejności całego projektu.
+
+1. [ ] Automatyczne testy integracyjne wyszukiwania na PostgreSQL: cechy na tym samym wariancie, liczenie produktu raz, zera i alternatywy filtrów.
+2. [ ] Zmierzyć czas i plany zapytań wyszukiwania oraz liczników filtrów przy większym katalogu; optymalizować zapytania i indeksy na podstawie pomiaru.
+3. [x] Dodać sortowanie i filtrowanie po bieżącej cenie sprzedaży w PLN, z ceną produktu wyznaczaną z pasujących wariantów. Reguły i zakres testów są w [modelu cen](pricing-model.md#odczyt-cen-w-katalogu).
+4. [ ] Rozważyć ranking trafności wyszukiwania tekstowego, np. pierwszeństwo dokładnego trafienia w nazwę przed fragmentem nazwy lub SKU.
 
 ## 0. Istniejący fundament
 
@@ -136,7 +145,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Dodać do `POST /api/v1/web/products/search` kontekstowe opcje filtrów z liczbą pasujących produktów, z pominięciem własnego wyboru przy liczeniu alternatyw klucza.
 - [x] Zwracać lekkie pozycje produktu w listach i wyszukiwaniu, zachowując pełny model w szczegółach.
 - [x] Dodać sortowanie list po nazwie i dacie publikacji.
-- [ ] Ustalić walutę i regułę sortowania po cenie produktu z wieloma wariantami.
+- [x] Wdrożyć uzgodniony na początek odczyt cenowy w PLN i regułę sortowania po najniższej bieżącej cenie pasującego wariantu; przed obsługą wielu walut rozszerzyć tę regułę.
 - [ ] Ustalić, czy i jak oceniać trafność wyników wyszukiwania.
 - [ ] Uwzględnić ustalony stan magazynowy per wariant w przyszłej logice zakupu; brak znanego stanu ma blokować zakup.
 - [ ] Dodać testy reguł katalogu i sprawdzić rzeczywiste połączenie widoków frontendu z API.

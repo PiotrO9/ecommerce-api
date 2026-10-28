@@ -12,7 +12,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 {
     [HttpGet("catalog")]
     public async Task<IActionResult> GetCatalog([FromQuery] int? page, [FromQuery] int? pageSize,
-        [FromQuery] string? q, [FromQuery] string? sort, CancellationToken cancellationToken)
+        [FromQuery] string? q, [FromQuery] string? sort, [FromQuery] decimal? minPrice,
+        [FromQuery] decimal? maxPrice, CancellationToken cancellationToken)
     {
         if (HasAttributeFiltersInQuery())
         {
@@ -31,12 +32,18 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         if (InvalidSort(sort))
         {
-            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest, oldest, price-asc albo price-desc." });
+        }
+
+        if (InvalidPriceRange(minPrice, maxPrice))
+        {
+            return BadRequest(new { message = "Podaj nieujemne ceny PLN z dokładnością do 0,01 i minPrice <= maxPrice." });
         }
 
         try
         {
             return Ok(await BuildListAsync(database.Products, page, pageSize, q, [], sort,
+                minPrice, maxPrice,
                 DateTime.UtcNow, cancellationToken));
         }
         catch (NpgsqlException)
@@ -101,7 +108,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     [HttpGet("by-category")]
     public async Task<IActionResult> GetByCategory([FromQuery] Guid? categoryId, [FromQuery] string? slug,
         [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? q, [FromQuery] string? sort,
-        CancellationToken cancellationToken)
+        [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, CancellationToken cancellationToken)
     {
         if (HasAttributeFiltersInQuery())
         {
@@ -125,7 +132,12 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         if (InvalidSort(sort))
         {
-            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest, oldest, price-asc albo price-desc." });
+        }
+
+        if (InvalidPriceRange(minPrice, maxPrice))
+        {
+            return BadRequest(new { message = "Podaj nieujemne ceny PLN z dokładnością do 0,01 i minPrice <= maxPrice." });
         }
 
         try
@@ -140,6 +152,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             var scopedProducts = database.Products
                 .Where(product => product.ProductCategories.Any(link => ids.Contains(link.CategoryId)));
             return Ok(await BuildListAsync(scopedProducts, page, pageSize, q, [], sort,
+                minPrice, maxPrice,
                 DateTime.UtcNow, cancellationToken));
         }
         catch (NpgsqlException)
@@ -175,7 +188,12 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         if (InvalidSort(request.Sort))
         {
-            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest albo oldest." });
+            return BadRequest(new { message = "sort musi mieć wartość name-asc, name-desc, newest, oldest, price-asc albo price-desc." });
+        }
+
+        if (InvalidPriceRange(request.MinPrice, request.MaxPrice))
+        {
+            return BadRequest(new { message = "Podaj nieujemne ceny PLN z dokładnością do 0,01 i minPrice <= maxPrice." });
         }
 
         if (request.CategoryId.HasValue && request.CategorySlug is not null ||
@@ -207,9 +225,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
             var now = DateTime.UtcNow;
             var list = await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes,
-                request.Sort, now, cancellationToken);
+                request.Sort, request.MinPrice, request.MaxPrice, now, cancellationToken);
             var filters = await BuildAvailableFiltersAsync(scope, request.Q, normalizedAttributes,
-                now, cancellationToken);
+                request.MinPrice, request.MaxPrice, now, cancellationToken);
             return Ok(new ProductSearchResponse(list.Items, list.Pagination, filters));
         }
         catch (NpgsqlException)
@@ -332,7 +350,15 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     private static bool InvalidSearch(string? q) => q?.Trim().Length > 100;
 
     private static bool InvalidSort(string? sort) => sort is not null &&
-        sort is not ("name-asc" or "name-desc" or "newest" or "oldest");
+        sort is not ("name-asc" or "name-desc" or "newest" or "oldest" or "price-asc" or "price-desc");
+
+    private static bool InvalidPriceRange(decimal? minPrice, decimal? maxPrice)
+    {
+        const decimal maxAmount = 9999999999999999.99m;
+        return (minPrice is decimal min && (min < 0 || min > maxAmount || decimal.Round(min, 2) != min)) ||
+            (maxPrice is decimal max && (max < 0 || max > maxAmount || decimal.Round(max, 2) != max)) ||
+            (minPrice.HasValue && maxPrice.HasValue && minPrice > maxPrice);
+    }
 
     private bool HasAttributeFiltersInQuery() => HttpContext?.Request.Query.Keys.Any(key =>
         key.StartsWith("attributes", StringComparison.OrdinalIgnoreCase)) == true;
@@ -382,8 +408,19 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         .Replace("%", @"\%")
         .Replace("_", @"\_") + "%";
 
+    private IQueryable<VariantPriceChange> CurrentPlnPrices(DateTime now) =>
+        database.VariantPriceChanges.AsNoTracking()
+            .Where(price => price.Currency == "PLN" && price.EffectiveAt <= now &&
+                price.Id == database.VariantPriceChanges
+                    .Where(candidate => candidate.VariantId == price.VariantId &&
+                        candidate.Currency == "PLN" && candidate.EffectiveAt <= now)
+                    .OrderByDescending(candidate => candidate.EffectiveAt)
+                    .ThenByDescending(candidate => candidate.CreatedAt)
+                    .ThenByDescending(candidate => candidate.Id)
+                    .Select(candidate => candidate.Id).First());
+
     private IQueryable<ProductVariant> MatchingVariants(IQueryable<Product> scope, DateTime now,
-        string? q, (string Code, string Value)[] attributes)
+        string? q, (string Code, string Value)[] attributes, decimal? minPrice, decimal? maxPrice)
     {
         IQueryable<ProductVariant> variants = database.ProductVariants.AsNoTracking()
             .Where(variant => variant.Status == CatalogStatus.Published &&
@@ -391,6 +428,15 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 variant.Product.ProductCategories.Any() &&
                 variant.PriceChanges.Any(price => price.EffectiveAt <= now) &&
                 scope.Any(product => product.Id == variant.ProductId));
+
+        if (minPrice.HasValue || maxPrice.HasValue)
+        {
+            var currentPrices = CurrentPlnPrices(now);
+            variants = variants.Where(variant => currentPrices.Any(price =>
+                price.VariantId == variant.Id &&
+                (!minPrice.HasValue || price.SellingAmount >= minPrice.Value) &&
+                (!maxPrice.HasValue || price.SellingAmount <= maxPrice.Value)));
+        }
 
         foreach (var group in attributes.GroupBy(attribute => attribute.Code))
         {
@@ -413,9 +459,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
     private async Task<ProductSearchFilterResponse[]> BuildAvailableFiltersAsync(
         IQueryable<Product> scope, string? q, (string Code, string Value)[] attributes,
-        DateTime now, CancellationToken cancellationToken)
+        decimal? minPrice, decimal? maxPrice, DateTime now, CancellationToken cancellationToken)
     {
-        var baseVariants = MatchingVariants(scope, now, q, []);
+        var baseVariants = MatchingVariants(scope, now, q, [], minPrice, maxPrice);
         var keys = await database.VariantAttributePairs.AsNoTracking()
             .Where(link => baseVariants.Any(variant => variant.Id == link.VariantId))
             .Select(link => new FacetKeyRow(link.AttributePair.AttributeKey.Code,
@@ -424,13 +470,13 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             .ToListAsync(cancellationToken);
 
         var selectedCodes = attributes.Select(attribute => attribute.Code).Distinct().ToArray();
-        var rows = await CountFacetRowsAsync(MatchingVariants(scope, now, q, attributes),
+        var rows = await CountFacetRowsAsync(MatchingVariants(scope, now, q, attributes, minPrice, maxPrice),
             null, selectedCodes, cancellationToken);
 
         foreach (var code in selectedCodes)
         {
             var otherAttributes = attributes.Where(attribute => attribute.Code != code).ToArray();
-            var matchingOthers = MatchingVariants(scope, now, q, otherAttributes);
+            var matchingOthers = MatchingVariants(scope, now, q, otherAttributes, minPrice, maxPrice);
             rows.AddRange(await CountFacetRowsAsync(matchingOthers, code, [], cancellationToken));
         }
 
@@ -472,12 +518,12 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
     private async Task<ProductListResponse> BuildListAsync(IQueryable<Product> scope,
         int? page, int? pageSize, string? q, (string Code, string Value)[] attributes, string? sort,
-        DateTime now, CancellationToken cancellationToken)
+        decimal? minPrice, decimal? maxPrice, DateTime now, CancellationToken cancellationToken)
     {
         var paginated = page.HasValue || pageSize.HasValue;
         var selectedPage = page ?? 1;
         var selectedPageSize = pageSize ?? 20;
-        var matchingVariants = MatchingVariants(scope, now, q, attributes);
+        var matchingVariants = MatchingVariants(scope, now, q, attributes, minPrice, maxPrice);
         IQueryable<Product> query = scope
             .AsNoTracking()
             .AsSplitQuery()
@@ -485,11 +531,28 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 product.ProductCategories.Any() &&
                 matchingVariants.Any(variant => variant.ProductId == product.Id));
 
+        var currentPlnPrices = CurrentPlnPrices(now);
+        var pricesByProduct = matchingVariants
+            .Join(currentPlnPrices, variant => variant.Id, price => price.VariantId,
+                (variant, price) => new { variant.ProductId, price.SellingAmount })
+            .GroupBy(row => row.ProductId)
+            .Select(group => new { ProductId = group.Key, Amount = group.Min(row => row.SellingAmount) });
+
         query = sort switch
         {
             "name-desc" => query.OrderByDescending(product => product.Name).ThenBy(product => product.Id),
             "newest" => query.OrderByDescending(product => product.PublishedAt).ThenBy(product => product.Id),
             "oldest" => query.OrderBy(product => product.PublishedAt).ThenBy(product => product.Id),
+            "price-asc" => query
+                .OrderBy(product => !pricesByProduct.Any(price => price.ProductId == product.Id))
+                .ThenBy(product => pricesByProduct.Where(price => price.ProductId == product.Id)
+                    .Select(price => (decimal?)price.Amount).FirstOrDefault())
+                .ThenBy(product => product.Id),
+            "price-desc" => query
+                .OrderBy(product => !pricesByProduct.Any(price => price.ProductId == product.Id))
+                .ThenByDescending(product => pricesByProduct.Where(price => price.ProductId == product.Id)
+                    .Select(price => (decimal?)price.Amount).FirstOrDefault())
+                .ThenBy(product => product.Id),
             _ => query.OrderBy(product => product.Name).ThenBy(product => product.Id)
         };
 
@@ -505,15 +568,16 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 product.Id, product.Name, product.Slug
             }).ToListAsync(cancellationToken);
         var productIds = products.Select(product => product.Id).ToArray();
+        var matchingVariantIds = matchingVariants.Where(variant => productIds.Contains(variant.ProductId))
+            .Select(variant => variant.Id);
         var variants = await database.ProductVariants.AsNoTracking()
-            .Where(variant => productIds.Contains(variant.ProductId) &&
-                variant.Status == CatalogStatus.Published &&
-                variant.PriceChanges.Any(price => price.EffectiveAt <= now))
+            .Where(variant => matchingVariantIds.Contains(variant.Id))
             .Select(variant => new { variant.Id, variant.ProductId, variant.SKU, variant.ImageUrls })
             .ToListAsync(cancellationToken);
         var variantIds = variants.Select(variant => variant.Id).ToArray();
         var prices = await database.VariantPriceChanges.AsNoTracking()
             .Where(price => variantIds.Contains(price.VariantId) && price.EffectiveAt <= now &&
+                (minPrice == null && maxPrice == null || price.Currency == "PLN") &&
                 price.Id == database.VariantPriceChanges
                     .Where(candidate => candidate.VariantId == price.VariantId &&
                         candidate.Currency == price.Currency && candidate.EffectiveAt <= now)

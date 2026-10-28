@@ -4,6 +4,8 @@ Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 
 Próba odczytu z 28.10.2026 na skonfigurowanej bazie sprawdziła: lekkie `items` i `pricesFrom` w katalogu (262 produkty), opcje cech dla `demo-odziez`, filtrowanie POST po cesze z `sort=newest`, `sort=name-desc` w GET, ścieżkę kategorii oraz niezmieniony pełny odczyt szczegółów. Kolejna próba POST sprawdziła kontekstowe `availableFilters`: bez filtrów, dla pasującej pary `kolor=czerwony` i `rozmiar=S`, dla kombinacji bez wyników (`czerwony` + `M`), dla `q` trafiającego w SKU innego wariantu, stałość liczników między stronami oraz zachowanie nieznanej wybranej wartości. Przy zerowym wyniku wybrana wartość pozostała z licznikiem `0`, a alternatywna wartość dostała licznik `1`. Testy jednostkowe obejmują ścieżkę od korzenia, odrzucanie błędnego `sort` i selektorów kategorii oraz składanie filtrów z wybranymi wartościami o liczniku `0`. Te próby nie zastępują automatycznego testu integracyjnego z PostgreSQL dla widoczności i historii cen.
 
+Po dodaniu odczytu cenowego ręczne próby HTTP na skonfigurowanym PostgreSQL sprawdziły `price-asc` i `price-desc`, oba końce zakresu oraz pojedyncze granice, granicę równą 90 PLN, wspólne dopasowanie SKU i ceny na jednym wariancie, liczniki `availableFilters` przy zakresie ceny, brak nakładania się dwóch stron oraz `400` dla ceny ujemnej, odwróconego zakresu i nadmiernej precyzji. Test jednostkowy w `ProductsEndpointTests.cs` sprawdza walidację zakresu przed dostępem do bazy. Nie ma jeszcze automatycznego testu integracyjnego historii zmian cen, braku PLN i współbieżnych zapisów na PostgreSQL.
+
 ## Stan potwierdzony
 
 - Rozwiązanie `E-commerce-backend.slnx` zawiera aplikację API oraz projekt xUnit `tests/E-commerce-backend.Tests`.

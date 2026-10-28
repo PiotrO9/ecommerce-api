@@ -32,9 +32,9 @@ public sealed class ProductsEndpointTests
         await using var database = new AppDbContext(options);
         var controller = new ProductsController(database);
 
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(null, null, null, null, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), "odziez", null, null, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(null, "   ", null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(null, null, null, null, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), "odziez", null, null, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(null, "   ", null, null, null, null, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -47,10 +47,10 @@ public sealed class ProductsEndpointTests
         var controller = new ProductsController(database);
         var categoryId = Guid.NewGuid();
 
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 0, 20, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 1, 0, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 1, 101, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, int.MaxValue, 100, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 0, 20, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 1, 0, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, 1, 101, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(categoryId, null, int.MaxValue, 100, null, null, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -62,9 +62,9 @@ public sealed class ProductsEndpointTests
         await using var database = new AppDbContext(options);
         var controller = new ProductsController(database);
 
-        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(0, null, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, 101, null, null, CancellationToken.None));
-        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(int.MaxValue, 100, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(0, null, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, 101, null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(int.MaxValue, 100, null, null, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -77,9 +77,9 @@ public sealed class ProductsEndpointTests
         var controller = new ProductsController(database);
         var overlong = new string('x', 101);
 
-        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, overlong, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, overlong, null, null, null, CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), null, null, null,
-            overlong, null, CancellationToken.None));
+            overlong, null, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -135,9 +135,9 @@ public sealed class ProductsEndpointTests
         controller.HttpContext.Request.QueryString =
             new QueryString("?attributes%5B0%5D.code=kolor&attributes%5B0%5D.value=czerwony");
 
-        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null, null, null, null, CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), null,
-            null, null, null, null, CancellationToken.None));
+            null, null, null, null, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -150,11 +150,11 @@ public sealed class ProductsEndpointTests
         var controller = new ProductsController(database);
 
         Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null,
-            "price-asc", CancellationToken.None));
+            "unknown", null, null, CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), null,
-            null, null, null, "price-asc", CancellationToken.None));
+            null, null, null, "unknown", null, null, CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.Search(new ProductSearchRequest
-            { Sort = "price-asc" }, CancellationToken.None));
+            { Sort = "unknown" }, CancellationToken.None));
     }
 
     [Fact]
@@ -170,5 +170,26 @@ public sealed class ProductsEndpointTests
             "odziez", CancellationToken.None));
         Assert.IsType<BadRequestObjectResult>(await controller.GetFilterOptions(null,
             "  ", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task ProductListsRejectInvalidPriceRangesBeforeDatabaseAccess()
+    {
+        var options = new DbContextOptionsBuilder<AppDbContext>()
+            .UseNpgsql("Host=localhost;Database=never_called;Username=postgres")
+            .Options;
+        await using var database = new AppDbContext(options);
+        var controller = new ProductsController(database);
+
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null, null,
+            -1m, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null, null,
+            1.001m, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetCatalog(null, null, null, null,
+            10000000000000000m, null, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.GetByCategory(Guid.NewGuid(), null,
+            null, null, null, null, 120m, 100m, CancellationToken.None));
+        Assert.IsType<BadRequestObjectResult>(await controller.Search(new ProductSearchRequest
+            { MinPrice = 50m, MaxPrice = 49.99m }, CancellationToken.None));
     }
 }
