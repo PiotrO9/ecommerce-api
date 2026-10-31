@@ -13,6 +13,8 @@ Cel: opisać własność schematów PostgreSQL, mapowanie EF Core i sposób bezp
 
 ## Schematy i odpowiedzialność
 
+Tabela `app.administrators` przechowuje PK `user_id` z FK do `auth.users.id` (`ON DELETE CASCADE`) i `created_at`. Migracja `20261031110337_AddAdministrators` włącza RLS i odbiera dostęp rolom Data API oraz PUBLIC. Zastosowano ją w skonfigurowanej bazie Supabase 31.10.2026. Nie tworzy administratorów i nie zmienia schematu `auth`. Zasady ręcznego nadania dostępu opisuje [dokument dostępu administratora](administrator-access.md). Seeder katalogu nie obejmuje tej tabeli.
+
 | Schemat | Obecne użycie | Właściciel zmian |
 | --- | --- | --- |
 | `auth` | `auth.users` oraz inne obiekty uwierzytelniania | Supabase Auth |
@@ -52,6 +54,8 @@ flowchart LR
 `variant_price_changes` przechowuje kolejne, niezmienne rekordy ceny wariantu. `base_amount` oznacza cenę podstawową, a `selling_amount` cenę oferowaną po promocji; bez promocji wartości są równe. Cena bieżąca pochodzi z ostatniego obowiązującego rekordu. Wariant bez ceny może być szkicem, ale nie może być opublikowany. Przy obliczaniu najniższej ceny z 30 dni przed obniżką uwzględnia się również ostatnią cenę obowiązującą na początku tego okresu; szczegóły i otwarte kwestie są w [modelu cen](pricing-model.md).
 
 Migracja `20261028110446_AddCurrentPlnPriceIndex` dodaje częściowy indeks dla bieżącego odczytu cen PLN: `variant_id`, `effective_at DESC`, `created_at DESC`, `id DESC`, z dołączoną `selling_amount`. Lokalny pomiar na 43 467 rekordach cen wykazał, że PostgreSQL zastępuje sortowanie historii skanem indeksowym. Migrację zastosowano na odizolowanej bazie testowej oraz 28.10.2026 w skonfigurowanej bazie Supabase; ponowna lista migracji EF nie pokazuje oczekujących zmian.
+
+Migracja `20261029140926_AddPriceChangeOperations` rozszerza historię cen o opcjonalne `operation_key`, `changed_by_user_id`, `previous_price_change_id`. Dodaje unikalność pary autor/klucz operacji, CHECK spójności metadanych oraz FK poprzedniej ceny z `RESTRICT`. Starsze dane pozostają bez metadanych. Autor jest audytowym UUID bez FK do konta. Migrację sprawdzono na izolowanym PostgreSQL 17 z istniejącymi rekordami; 31.10.2026 zastosowano ją także w skonfigurowanej bazie Supabase. Wewnętrzny serwis korzysta z krótkiej transakcji, blokady klucza operacji i wiersza wariantu; opis reguł jest w [modelu cen](pricing-model.md).
 
 `categories.parent_id` tworzy drzewo kategorii bez stałego limitu głębokości, a `product_categories` pozwala przypisać produkt do wielu kategorii. `categories.display_name` jest wymagane i ma od 1 do 120 znaków po przycięciu białych znaków; `slug` jest wymagany i unikalny wśród kategorii mających tego samego rodzica, także wśród kategorii głównych. Zmiana `display_name` nie aktualizuje automatycznie `slug`, ale zapisany `slug` można zmienić ręcznie po walidacji. Przeniesienie kategorii wymaga wolnego `slug` w nowym miejscu i nie może utworzyć cyklu. Ścieżkę kategorii prezentujemy od korzenia do wybranego węzła. Pobranie produktów z kategorii obejmuje jej bezpośrednie przypisania oraz przypisania ze wszystkich podkategorii; wynik nie duplikuje produktów. Kategorii z podkategoriami lub przypisanymi produktami nie wolno usunąć. Szkic produktu może nie mieć kategorii, lecz publikacja wymaga przynajmniej jednego przypisania; projekt zabezpieczeń współbieżności i szczegóły są w [modelu katalogu](catalog-model.md#kategorie).
 

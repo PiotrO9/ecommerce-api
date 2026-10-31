@@ -110,8 +110,11 @@ if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
 
 builder.Services.AddSingleton<AuthCookieService>();
 builder.Services.AddScoped<AuthenticatedUserService>();
+builder.Services.AddScoped<IAdministratorAccess, AdministratorAccess>();
 builder.Services.AddScoped<IUserProfileReader, UserProfileReader>();
 builder.Services.AddScoped<DemoCatalogSeeder>();
+builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
+builder.Services.AddScoped<E_commerce_backend.Services.Pricing.VariantPriceService>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(

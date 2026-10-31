@@ -135,6 +135,7 @@ internal static class CatalogModelConfiguration
                 table.HasCheckConstraint("CK_variant_price_changes_amounts", "base_amount >= 0 AND selling_amount >= 0 AND selling_amount <= base_amount");
                 table.HasCheckConstraint("CK_variant_price_changes_currency", "currency ~ '^[A-Z]{3}$'");
                 table.HasCheckConstraint("CK_variant_price_changes_reason", "length(btrim(reason)) > 0");
+                table.HasCheckConstraint("CK_variant_price_changes_operation", "(operation_key IS NULL AND changed_by_user_id IS NULL AND previous_price_change_id IS NULL) OR (operation_key IS NOT NULL AND changed_by_user_id IS NOT NULL)");
             });
             price.HasKey(x => x.Id);
             price.Property(x => x.Id).HasColumnName("id").ValueGeneratedNever();
@@ -152,6 +153,13 @@ internal static class CatalogModelConfiguration
             price.Property(x => x.EffectiveAt).HasColumnName("effective_at").HasColumnType("timestamp with time zone");
             price.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
             price.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(120).IsRequired();
+            price.Property(x => x.OperationKey).HasColumnName("operation_key");
+            price.Property(x => x.ChangedByUserId).HasColumnName("changed_by_user_id");
+            price.Property(x => x.PreviousPriceChangeId).HasColumnName("previous_price_change_id");
+            price.HasOne<VariantPriceChange>().WithMany().HasForeignKey(x => x.PreviousPriceChangeId)
+                .OnDelete(DeleteBehavior.Restrict);
+            price.HasIndex(x => new { x.ChangedByUserId, x.OperationKey }).IsUnique()
+                .HasFilter("operation_key IS NOT NULL");
         });
     }
 }

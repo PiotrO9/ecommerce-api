@@ -37,6 +37,23 @@ namespace E_commerce_backend.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("E_commerce_backend.Entities.Administrator", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("administrators", "app");
+                });
+
             modelBuilder.Entity("E_commerce_backend.Entities.AttributeKey", b =>
                 {
                     b.Property<Guid>("Id")
@@ -373,6 +390,10 @@ namespace E_commerce_backend.Data.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("base_amount");
 
+                    b.Property<Guid?>("ChangedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("changed_by_user_id");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -389,6 +410,14 @@ namespace E_commerce_backend.Data.Migrations
                     b.Property<DateTime>("EffectiveAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("effective_at");
+
+                    b.Property<Guid?>("OperationKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_key");
+
+                    b.Property<Guid?>("PreviousPriceChangeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_price_change_id");
 
                     b.Property<string>("Reason")
                         .IsRequired()
@@ -407,6 +436,12 @@ namespace E_commerce_backend.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PreviousPriceChangeId");
+
+                    b.HasIndex("ChangedByUserId", "OperationKey")
+                        .IsUnique()
+                        .HasFilter("operation_key IS NOT NULL");
+
                     b.HasIndex("VariantId", "Currency", "EffectiveAt", "CreatedAt");
 
                     b.HasIndex("VariantId", "EffectiveAt", "CreatedAt", "Id")
@@ -421,6 +456,8 @@ namespace E_commerce_backend.Data.Migrations
                             t.HasCheckConstraint("CK_variant_price_changes_amounts", "base_amount >= 0 AND selling_amount >= 0 AND selling_amount <= base_amount");
 
                             t.HasCheckConstraint("CK_variant_price_changes_currency", "currency ~ '^[A-Z]{3}$'");
+
+                            t.HasCheckConstraint("CK_variant_price_changes_operation", "(operation_key IS NULL AND changed_by_user_id IS NULL AND previous_price_change_id IS NULL) OR (operation_key IS NOT NULL AND changed_by_user_id IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_variant_price_changes_reason", "length(btrim(reason)) > 0");
                         });
@@ -461,6 +498,15 @@ namespace E_commerce_backend.Data.Migrations
                         {
                             t.HasCheckConstraint("CK_variant_stock_nonnegative", "quantity_on_hand >= 0");
                         });
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.Administrator", b =>
+                {
+                    b.HasOne("E_commerce_backend.Data.AuthUserReference", null)
+                        .WithOne()
+                        .HasForeignKey("E_commerce_backend.Entities.Administrator", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("E_commerce_backend.Entities.AttributePair", b =>
@@ -544,6 +590,11 @@ namespace E_commerce_backend.Data.Migrations
 
             modelBuilder.Entity("E_commerce_backend.Entities.VariantPriceChange", b =>
                 {
+                    b.HasOne("E_commerce_backend.Entities.VariantPriceChange", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousPriceChangeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("E_commerce_backend.Entities.ProductVariant", "Variant")
                         .WithMany("PriceChanges")
                         .HasForeignKey("VariantId")

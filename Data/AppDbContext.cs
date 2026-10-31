@@ -6,6 +6,7 @@ namespace E_commerce_backend.Data;
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<Administrator> Administrators => Set<Administrator>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<AttributeKey> AttributeKeys => Set<AttributeKey>();
@@ -38,6 +39,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             profile.HasOne<AuthUserReference>()
                 .WithOne()
                 .HasForeignKey<UserProfile>(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Administrator>(admin =>
+        {
+            admin.ToTable("administrators", "app");
+            admin.HasKey(x => x.UserId);
+            admin.Property(x => x.UserId).HasColumnName("user_id").ValueGeneratedNever();
+            admin.Property(x => x.CreatedAt).HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone").HasDefaultValueSql("CURRENT_TIMESTAMP");
+            admin.HasOne<AuthUserReference>().WithOne().HasForeignKey<Administrator>(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

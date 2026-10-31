@@ -6,6 +6,24 @@ Cel: opisać zewnętrzne zachowanie endpointów istniejących w kodzie. Źródł
 
 Wszystkie trasy kontrolerów zaczynają się od `/api/v1/web`. Pola JSON mają nazwy w stylu `camelCase`. Żądania `POST` i `PUT` z danymi przyjmują JSON. Błędy walidacji modeli wejściowych obsługuje także `[ApiController]`, więc ich treść może różnić się od komunikatów tworzonych jawnie w kontrolerach.
 
+## Administracyjne ceny wariantu
+
+Trzy trasy wymagają ważnej sesji i aktualnego wpisu `app.administrators`. Sprawdzenie poprzedza odczyt/zapis cen; wszystkie odpowiedzi kontrolera mają `Cache-Control: no-store`. Nadanie uprawnienia opisuje [dostęp administratora](administrator-access.md).
+
+| Metoda i trasa | Żądanie | Sukces |
+| --- | --- | --- |
+| `GET /api/v1/web/admin/variants/{id}/price` | UUID wariantu w ścieżce | `200`, `{price}`; `variantId` i `currency` są tylko wewnątrz `price`; `price=null`, jeśli wariant istnieje, ale nie ma bieżącej ceny PLN |
+| `POST /api/v1/web/admin/variants/{id}/price-changes` | JSON `baseAmount`, `reason`, opcjonalne `currency` (PLN) i `expectedPriceChangeId`; nagłówki `Idempotency-Key` (niepusty UUID) i `X-Requested-With: XMLHttpRequest` | `201` nowa operacja lub `200` ponowienie, `{replayed, price}` |
+| `GET /api/v1/web/admin/variants/{id}/price-changes` | Opcjonalne `page` (1), `pageSize` (20, zakres 1–100), `from`, `to` (daty z offsetem) | `200`, `{items, page, pageSize, totalItems, totalPages}` |
+
+Obiekt `price` i elementy historii mają `id`, `variantId`, `baseAmount`, `sellingAmount`, `currency`, `effectiveAt`, `createdAt`, `reason`, `previousPriceChangeId`, `changedByUserId`. Daty są w UTC; stare/demonstracyjne wpisy mogą mieć autora i poprzednika null. Historia obejmuje także przyszłe rekordy PLN; `from` jest włączne, `to` wyłączne, według `effectiveAt`. GET ceny bieżącej pomija przyszłe wpisy. Sortowanie historii: `effectiveAt DESC`, `createdAt DESC`, `id DESC`. Wariant bez ceny ma pustą historię, a nieistniejący daje `404`.
+
+POST przyjmuje kwoty `0`–`9999999999999999.99`, maksymalnie dwa miejsca po przecinku, przycięty powód 1–120 znaków. Przy pierwszej cenie `expectedPriceChangeId` jest null; przy kolejnej musi wskazywać ostatnią cenę PLN. Backend ustala czas, autora i cenę sprzedaży. Nieznane pola JSON są odrzucane (`400`), więc body nie może narzucić autora, daty ani ceny sprzedaży. Cena sprzedaży bez promocji jest równa podstawowej.
+
+Błędy: `401` bez sesji; `403` bez uprawnienia lub wymaganego nagłówka CSRF; `400` dla danych/body/nagłówka klucza/paginacji; `404` dla wariantu lub niepasującego do trasy UUID; `503` przy niedostępności Auth/bazy. Konflikty `409` mają `code`: `price_version_conflict`, `idempotency_key_conflict`, `discounted_price_conflict`, `future_price_conflict`, `price_timestamp_conflict`. Powtórzenie udanej operacji z tym samym autorem, kluczem i treścią zwraca jej oryginalny wpis także po późniejszych zmianach. Klucz z inną treścią daje konflikt.
+
+## Pozostałe trasy
+
 | Metoda i trasa | Żądanie | Sukces | Ważne błędy |
 | --- | --- | --- | --- |
 | `GET /` | Bez logowania | `200`, `{"message":"API działa"}` | — |

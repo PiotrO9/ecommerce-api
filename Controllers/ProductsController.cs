@@ -412,7 +412,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
     private IQueryable<VariantPriceChange> CurrentPlnPrices(DateTime now) =>
         database.VariantPriceChanges.FromSqlInterpolated($"""
             SELECT DISTINCT ON (variant_id)
-                id, variant_id, base_amount, selling_amount, currency, effective_at, created_at, reason
+                id, variant_id, base_amount, selling_amount, currency, effective_at, created_at, reason,
+                operation_key, changed_by_user_id, previous_price_change_id
             FROM app.variant_price_changes
             WHERE currency = 'PLN' AND effective_at <= {now}
             ORDER BY variant_id, effective_at DESC, created_at DESC, id DESC

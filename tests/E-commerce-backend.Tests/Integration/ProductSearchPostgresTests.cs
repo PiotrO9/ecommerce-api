@@ -9,6 +9,7 @@ using Npgsql;
 
 namespace E_commerce_backend.Tests.Integration;
 
+[Collection("Postgres catalog")]
 public sealed class ProductSearchPostgresTests
 {
     [PostgresFact]

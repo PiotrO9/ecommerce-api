@@ -28,7 +28,14 @@ public sealed class CatalogModelTests
         Assert.Equal(typeof(Product), Assert.Single(variant.GetForeignKeys()).PrincipalEntityType.ClrType);
         Assert.True(Assert.Single(stock.GetIndexes()).IsUnique);
         Assert.Equal(typeof(ProductVariant), Assert.Single(stock.GetForeignKeys()).PrincipalEntityType.ClrType);
-        Assert.Equal(typeof(ProductVariant), Assert.Single(price.GetForeignKeys()).PrincipalEntityType.ClrType);
+        var variantForeignKey = Assert.Single(price.GetForeignKeys(), foreignKey =>
+            foreignKey.Properties.Single().Name == nameof(VariantPriceChange.VariantId));
+        Assert.Equal(typeof(ProductVariant), variantForeignKey.PrincipalEntityType.ClrType);
+        var previousPriceForeignKey = Assert.Single(price.GetForeignKeys(), foreignKey =>
+            foreignKey.Properties.Single().Name == nameof(VariantPriceChange.PreviousPriceChangeId));
+        Assert.Equal(typeof(VariantPriceChange), previousPriceForeignKey.PrincipalEntityType.ClrType);
+        Assert.False(previousPriceForeignKey.IsRequired);
+        Assert.Equal(DeleteBehavior.Restrict, previousPriceForeignKey.DeleteBehavior);
         Assert.Equal(18, price.FindProperty(nameof(VariantPriceChange.SellingAmount))!.GetPrecision());
         Assert.Equal(2, price.FindProperty(nameof(VariantPriceChange.SellingAmount))!.GetScale());
     }

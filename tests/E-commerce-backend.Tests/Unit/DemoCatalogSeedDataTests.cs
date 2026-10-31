@@ -14,6 +14,12 @@ public sealed class DemoCatalogSeedDataTests
 
         Assert.Equal(27, data.Entities.Count);
         Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4), data.Created);
+        Assert.All(data.Entities.OfType<VariantPriceChange>(), price =>
+        {
+            Assert.Null(price.OperationKey);
+            Assert.Null(price.ChangedByUserId);
+            Assert.Null(price.PreviousPriceChangeId);
+        });
         Assert.All(data.Products, product => Assert.Equal(CatalogStatus.Draft, product.Status));
         Assert.All(data.Variants, variant => Assert.Equal(CatalogStatus.Draft, variant.Status));
         Assert.Equal(2, data.Entities.OfType<VariantPriceChange>()

@@ -4,6 +4,10 @@ Cel: opisać ręcznie uruchamiany seeder danych demonstracyjnych potrzebny podcz
 
 Zasady rozbudowy seedera przy kolejnych zmianach modelu bazy są w [seeder-maintenance.md](seeder-maintenance.md).
 
+Tabela `app.administrators` jest celowo wyłączona z seedowania i resetu: zawiera uprawnienia kont. Seeder nie tworzy fikcyjnych kont, nie nadaje uprawnień i nie usuwa istniejących administratorów. Liczniki katalogu nie obejmują tej tabeli; test PostgreSQL potwierdza jej zachowanie podczas resetu. Pierwszy dostęp nadaje się według [instrukcji administratora](administrator-access.md).
+
+Po dodaniu metadanych operacji zmiany ceny seeder nadal tworzy historyczne stany cen z `operation_key`, `changed_by_user_id` i `previous_price_change_id` równymi null. Nie są to działania administratora, więc nie tworzy fikcyjnych kont ani kluczy operacji; liczniki pozostają bez zmian. Zgodność zapisu i ponownego resetu po użyciu `VariantPriceService` sprawdza test PostgreSQL. Powód wyjątku i zakres migracji są w [modelu cen](pricing-model.md#wdrożony-pierwszy-etap--29102026).
+
 ## Stan potwierdzony w kodzie
 
 - `POST /api/v1/web/seed` jest mapowany tylko przy `ASPNETCORE_ENVIRONMENT=Development` i `DemoSeed:Enabled=true`. Gdy brakuje `DemoSeed:Key` lub ma on mniej niż 32 znaki, API nie startuje z włączonym seederem.

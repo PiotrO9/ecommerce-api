@@ -11,4 +11,7 @@ public sealed class VariantPriceChange
     public DateTime EffectiveAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public required string Reason { get; set; }
+    public Guid? OperationKey { get; set; }
+    public Guid? ChangedByUserId { get; set; }
+    public Guid? PreviousPriceChangeId { get; set; }
 }

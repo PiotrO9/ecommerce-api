@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają proste wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu. Nie ma jeszcze operacji zapisu katalogu ani testów zachowania ograniczeń na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają proste wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu. Działa administracyjna zmiana zwykłych cen PLN i kontrola uprawnienia z app.administrators. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen ma testy niezmienności i konkurencji na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -37,7 +37,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
 | **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | W toku: API listy i szczegółów gotowe; brak integracji z frontendem |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | W toku |
-| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: model, migracja i odczyt bieżącej ceny wariantu; brak operacji zmiany |
+| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: zapis zwykłych cen PLN, historia i endpointy administratora gotowe; powiązanie z promocjami przed nami |
 | **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | Nie rozpoczęto |
 | **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Nie rozpoczęto |
 | **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | Nie rozpoczęto |
@@ -50,7 +50,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **6.1 Tpay sandbox** | Testowa płatność bezpiecznie aktualizuje zamówienie | Nie rozpoczęto |
 | **6.2 Symulowana dostawa** | Zamówienie przechodzi przez ustalone statusy kurierskie | Nie rozpoczęto |
 | **6.3 E-maile transakcyjne** | Uzgodnione zdarzenia wysyłają odpowiednie wiadomości | Nie rozpoczęto |
-| **7.1 Uprawnienia administratora** | Zwykły klient nie ma dostępu do operacji zarządzania | Nie rozpoczęto |
+| **7.1 Uprawnienia administratora** | Zwykły klient nie ma dostępu do operacji zarządzania | Gotowe w kodzie: kontrola sesji i tabeli administrators dla cen; testy lokalne z atrapą Auth |
 | **7.2 Zarządzanie sklepem** | Panel obsługuje ofertę, ceny, stany i zamówienia | Nie rozpoczęto |
 | **7.3 Pliki produktów** | Zdjęcia są obsługiwane przez Supabase Storage z właściwym dostępem | Nie rozpoczęto |
 | **8.1 Zdrowie, logi i błędy** | Działa `/healthz`, logi JSON i raportowanie do GlitchTip | Nie rozpoczęto |
@@ -162,6 +162,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [ ] Ustalić przejścia między statusami, precyzję kwot, obsługiwane waluty, cenę brutto/netto oraz zasady zaokrąglania.
 - [ ] Osobno ustalić, czy promocja dotyczy produktu czy wariantu, czym jest „kolekcja” i co robić przy nakładających się promocjach.
 - [ ] Zaprojektować i wdrożyć zapis historii cen **przed** uruchomieniem administracyjnej zmiany cen lub pokazywaniem obniżek.
+  Wdrożony pierwszy wycinek: `VariantPriceService` dopisuje zwykłą cenę PLN, kontroluje wersję i ponowienia operacji. Testy PostgreSQL potwierdziły pierwszą cenę, współbieżność i niezmienność historii. 31.10.2026 dodano uprawnienia administratora, endpointy ceny i zastosowano migracje w Supabase. Model promocji i zdarzenia obniżek pozostają do wdrożenia. Szczegóły w [modelu cen](pricing-model.md#wdrożony-pierwszy-etap--29102026).
 - [ ] Dodać promocje procentowe i kwotowe dla pojedynczych produktów, kolekcji albo całej oferty, zgodnie z uzgodnionymi zasadami pierwszeństwa.
 - [ ] Udostępnić frontendowi cenę bieżącą oraz dane do pokazania najniższej ceny z 30 dni przed obniżką wszędzie tam, gdzie jest prezentowana promocja.
 - [ ] Zweryfikować interpretację wymogu Omnibus dla wariantów i następujących po sobie zmian cen przed wdrożeniem reguł do kodu.
@@ -205,7 +206,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 
 ## 7. Administracja i pliki
 
-- [ ] Ustalić, kto jest administratorem i na jakiej podstawie API nadaje dostęp; nie opierać uprawnień na danych, które użytkownik może sam edytować.
+- [x] Wdrożyć uprawnienie administratora oparte na zweryfikowanej sesji i tabeli app.administrators, z ręcznym nadawaniem przez właściciela bazy. Kontrolę odczytu, zapisu i odebrania uprawnienia dla cen potwierdzają testy; [instrukcja](administrator-access.md).
 - [ ] Rozbudować endpointy do zarządzania katalogiem, wariantami, kategoriami, cenami, promocjami, stanami i zamówieniami.
 - [ ] Ustalić zasady przesyłania, odczytu i usuwania plików w Supabase Storage, zwłaszcza zdjęć produktów.
 - [ ] Sprawdzić dostęp zwykłego klienta do operacji administracyjnych i plików; przetestować najważniejsze zmiany stanu.
