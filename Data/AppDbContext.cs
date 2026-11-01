@@ -7,6 +7,11 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 {
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<Administrator> Administrators => Set<Administrator>();
+    public DbSet<Promotion> Promotions => Set<Promotion>();
+    public DbSet<PromotionVariant> PromotionVariants => Set<PromotionVariant>();
+    public DbSet<PriceReduction> PriceReductions => Set<PriceReduction>();
+    public DbSet<VariantOfferEvent> VariantOfferEvents => Set<VariantOfferEvent>();
+    public DbSet<PromotionOperation> PromotionOperations => Set<PromotionOperation>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<AttributeKey> AttributeKeys => Set<AttributeKey>();
@@ -54,5 +59,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         });
 
         CatalogModelConfiguration.Configure(modelBuilder);
+        PromotionModelConfiguration.Configure(modelBuilder);
     }
 }

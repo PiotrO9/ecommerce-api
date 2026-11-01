@@ -115,6 +115,7 @@ builder.Services.AddScoped<IUserProfileReader, UserProfileReader>();
 builder.Services.AddScoped<DemoCatalogSeeder>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<E_commerce_backend.Services.Pricing.VariantPriceService>();
+builder.Services.AddScoped<E_commerce_backend.Services.Pricing.PromotionService>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(

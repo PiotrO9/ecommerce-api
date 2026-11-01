@@ -1,10 +1,12 @@
 # Wstępny model ceny wariantu
 
-Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, zanim powstaną promocje, koszyk i zamówienia. Model wariantu jest w [modelu katalogu](catalog-model.md), a kolejność prac w [planie backendu](project-direction.md).
+Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, wraz z wdrożoną pierwszą wersją promocji produktu, przed koszykiem i zamówieniami. Model wariantu jest w [modelu katalogu](catalog-model.md), a kolejność prac w [planie backendu](project-direction.md).
+
+Wdrożony zakres 31.10.2026 opisuje [plan promocji](promotion-implementation-plan.md): promocja jednego produktu, rejestr oferowania, zapisane odniesienie, transakcje i endpointy. Szersza analiza poniżej jest historyczną propozycją przyszłych rozszerzeń; aktualne reguły pierwszej wersji opisuje ten plan i sekcja na końcu dokumentu.
 
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` dziewięciu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Odczyt szczegółów produktu wybiera bieżącą cenę sprzedaży wariantu osobno dla każdej waluty. Wewnętrzny `VariantPriceService` dopisuje zwykłą cenę PLN z kontrolą wersji i ponowień. Administracyjny kontroler udostępnia bieżącą cenę, zapis oraz historię. Obliczanie najniższej ceny przed obniżką i promocje pozostają do wdrożenia. Automatyczne testy na PostgreSQL potwierdziły blokadę `UPDATE` i `DELETE`. Migracje metadanych operacji i dostępu administratora zastosowano w skonfigurowanej bazie Supabase 31.10.2026.
+Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` czternastu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Odczyt szczegółów produktu wybiera bieżącą cenę sprzedaży wariantu osobno dla każdej waluty. Wewnętrzny `VariantPriceService` dopisuje zwykłą cenę PLN z kontrolą wersji i ponowień. Administracyjny kontroler udostępnia bieżącą cenę, zapis oraz historię. Wdrożono promocje pojedynczego produktu i zapisane odniesienie wcześniejszej ceny dla zwykłych towarów. Automatyczne testy na PostgreSQL potwierdziły blokadę `UPDATE` i `DELETE`. Migracje metadanych operacji i dostępu administratora zastosowano w skonfigurowanej bazie Supabase 31.10.2026.
 
 ## Ustalenia z właścicielem projektu
 
@@ -32,7 +34,7 @@ Przykład dla jednego wariantu:
 | 15 października | 120 PLN | 120 PLN | Koniec promocji |
 | 20 października | 110 PLN | 110 PLN | Zmiana ceny podstawowej |
 
-Cena bieżąca pochodzi z ostatniego rekordu wariantu i waluty z `effective_at` nie późniejszym niż bieżący moment. Przy zmianie ceny podstawowej podczas promocji także trzeba dopisać nowy rekord z ponownie wyliczoną ceną sprzedaży. Osobna kopia bieżącej kwoty nie jest na starcie potrzebna. Wariant bez żadnego obowiązującego rekordu może pozostać szkicem, ale nie może zostać opublikowany.
+Cena bieżąca pochodzi z ostatniego rekordu wariantu i waluty z `effective_at` nie późniejszym niż bieżący moment. Pierwsza wersja blokuje zmianę podstawy podczas aktywnej promocji; jej zakończenie dopisuje cenę bez rabatu. Osobna kopia bieżącej kwoty nie jest na starcie potrzebna. Wariant bez żadnego obowiązującego rekordu może pozostać szkicem, ale nie może zostać opublikowany.
 
 ```mermaid
 flowchart LR
@@ -45,7 +47,7 @@ Rekordy historii nie mogą być usuwane przez ogólne zadanie czyszczące po 30 
 
 ## Granica z promocjami i wymogiem wcześniejszej ceny
 
-Reguły promocji będą osobnym modelem. Kiedy promocja zacznie, zmieni lub przestanie wpływać na cenę wariantu, backend dopisze jego nowy rekord ceny z wyliczonym `selling_amount`. Historia obejmie wtedy cenę **faktycznie oferowaną klientowi**, a nie tylko cenę podstawową. Szczegółowy sposób powiązania rekordu z promocją, zasady nakładania promocji i rabaty zależne od koszyka lub klienta pozostają do ustalenia.
+Reguły promocji są osobnym modelem. Gdy promocja zaczyna lub przestaje wpływać na wariant, backend dopisuje jego nowy rekord ceny z wyliczonym `selling_amount`. Historia obejmie wtedy cenę **faktycznie oferowaną klientowi**, a nie tylko cenę podstawową. Szczegółowy sposób powiązania rekordu z promocją, zasady nakładania promocji i rabaty zależne od koszyka lub klienta pozostają do ustalenia.
 
 Według [informacji UOKiK o obniżkach](https://prawakonsumenta.uokik.gov.pl/prawo-do-informacji/informacje-o-obnizkach-cen/) przy informowaniu o obniżce należy pokazać najniższą cenę obowiązującą w okresie 30 dni przed jej wprowadzeniem; dla oferty krótszej niż 30 dni liczy się okres od rozpoczęcia sprzedaży. [UOKiK zwraca też uwagę](https://www.uokik.gov.pl/public/tajemnicze-i-zwodnicze-promocje-na-temu) na spójność tej informacji między wariantami i przy kolejnych zmianach cen promocyjnych. Szczegółową interpretację dla wybranych rodzajów promocji trzeba sprawdzić przed wdrożeniem.
 
@@ -70,22 +72,22 @@ W odczycie katalogu porównujemy wyłącznie bieżące kwoty `selling_amount` w 
 - `GET /products/catalog` i `GET /products/by-category` przyjmują `minPrice` i `maxPrice` w query; `POST /products/search` przyjmuje je w JSON. Wszystkie trzy przyjmują `sort=price-asc` lub `price-desc`. Granice są domknięte; dozwolone są kwoty nieujemne z dokładnością do 0,01 i w zakresie `numeric(18,2)`. Odwrócony lub błędny zakres daje `400`.
 - Wspólne zapytanie o ostatnią obowiązującą cenę PLN wariantu uczestniczy w dopasowaniu i sortowaniu. Najniższa cena produktu jest wyznaczana w PostgreSQL przed stronicowaniem; historia nie jest pobierana w całości do pamięci tylko po to, by sortować. `GET /products/filter-options` pozostaje ogólnym słownikiem bez zakresu ceny.
 - Ręczne próby HTTP z PostgreSQL potwierdziły sortowanie w obu kierunkach, filtrowanie z jedną lub dwiema granicami, granicę równą 90 PLN, zgodność ceny z wariantem trafionym przez SKU i cechy, liczniki filtrów, brak nakładania stron oraz `400` dla błędnych kwot. Test jednostkowy sprawdza walidację zakresu przed dostępem do bazy.
-- Automatyczny test `ProductSearchPostgresTests` sprawdza pomijanie przyszłej ceny i wariant bez PLN. `PriceChangePostgresTests` sprawdza operacje zmiany zwykłej ceny, niezmienność historii i współbieżne zapisy. Wyliczanie wcześniejszej ceny dla obniżek pozostaje do wdrożenia i przetestowania.
+- Automatyczny test `ProductSearchPostgresTests` sprawdza pomijanie przyszłej ceny i wariant bez PLN. `PriceChangePostgresTests` sprawdza operacje zmiany zwykłej ceny, niezmienność historii i współbieżne zapisy. Wyliczanie wcześniejszej ceny dla obniżek wdrożono i sprawdzono w etapie promocji z 31.10.2026.
 
 Zmiana dotyczy wyłącznie odczytu. Nie zmienia schematu bazy ani seedera.
 
-## Pytania otwarte
+## Pozostałe pytania i rozstrzygnięcia
 
 1. Jakie przejścia między `Draft`, `Published` i `Hidden` dopuszczać oraz czy `PublishedAt` oznacza pierwszą czy ostatnią publikację?
 2. Dla planowanego odczytu katalogu przyjęto tymczasowo wyłącznie `PLN`. Czy zapis cen i cały proces sprzedaży mają formalnie blokować inne waluty? Tego nie ustalono; pole waluty pozostaje w modelu.
-3. W bazie przyjęto `numeric(18,2)`. Jaka jest zasada zaokrąglania w obliczeniach i czy przechowujemy cenę brutto, netto, czy obie?
-4. Czy zmiana ceny może być zaplanowana na przyszłość? Jak obsłużyć równoczesne zmiany ceny tego samego wariantu?
-5. Jak powiązać zmianę ceny z regułą promocji, obsłużyć nakładanie promocji oraz rabaty zależne od koszyka lub klienta? Jak niezawodnie dopisywać rekordy przy rozpoczęciu i zakończeniu promocji?
-6. Jak odtworzyć dokładne okresy publicznego oferowania wariantu, gdy produkt lub wariant jest ukrywany i ponownie publikowany?
+3. Pierwsza wersja: jedna kwota konsumencka PLN, `numeric(18,2)`, końcowe zaokrąglenie `AwayFromZero`. Osobne podatki/netto i szczególne zasady checkoutu pozostają do ustalenia.
+4. Harmonogramy są poza pierwszą wersją. Równoczesne zapisy mają blokady, kontrolę oczekiwanej wersji i klucz ponowienia.
+5. Pierwsza wersja powiązuje ceny z nadrzędną operacją i obniżką oraz blokuje nakładanie aktywnych udziałów. Rabaty koszykowe, kolekcje i łączenie promocji pozostają rozszerzeniami.
+6. Rejestr oferty oparty o triggery i historię cen wdrożono 31.10.2026. Proces potwierdzonego importu wcześniejszej oferty pozostaje osobnym zadaniem.
 
 ## Propozycja wdrożenia modułu 3 — analiza z 28.10.2026
 
-Status: propozycja przygotowana na prośbę właściciela projektu. Rozpoczęto realizację pierwszego etapu 29.10.2026; rzeczywisty zakres opisuje sekcja poniżej. Pozostałe endpointy, modele i reguły są propozycjami. Stan na 31.10.2026: uprawnienia administratora i trzy endpointy ceny są wdrożone; model promocji pozostaje propozycją. Lista obszarów chronionych jest obecnie pusta.
+Status: propozycja przygotowana na prośbę właściciela projektu. Rozpoczęto realizację pierwszego etapu 29.10.2026; rzeczywisty zakres opisuje sekcja poniżej. Pozostałe endpointy, modele i reguły są propozycjami. Poniższa analiza zachowuje pierwotny szerszy zakres. Stan na 31.10.2026: endpointy ceny i promocja jednego produktu są wdrożone; kolekcje, harmonogramy i modyfikacja aktywnej akcji pozostają propozycjami. Lista obszarów chronionych jest obecnie pusta.
 
 ### Pierwszy zakres i reguły do uzgodnienia
 
@@ -176,7 +178,7 @@ Decyzja właściciela projektu z 31.10.2026: zachowujemy `variantId` w adresie i
 
 - Zapis obsługuje PLN (trim i wielkie litery), kwoty od 0 do `9999999999999999.99`, maksymalnie dwa miejsca po przecinku i przycięty powód o długości 1–120 znaków. Zero pozostawiono zgodnie z istniejącym ograniczeniem bazy; endpoint zachowuje dopuszczenie zera i nie wykonuje obliczeń VAT; szczegółowe zasady darmowych ofert i podatków pozostają do ustalenia. Wejść nie zaokrąglamy po cichu.
 - Pierwsza cena wymaga `ExpectedPriceChangeId=null`. Następna wymaga identyfikatora ostatniej ceny PLN. Bez rabatu backend zapisuje `SellingAmount=BaseAmount`; nie przyjmuje od klienta osobnej ceny sprzedaży ani daty obowiązywania. Także świadoma zmiana na tę samą kwotę tworzy rekord nowej operacji.
-- Transakcja najpierw pobiera blokadę doradczą per autor/klucz operacji, sprawdza ponowienie, a potem blokuje wiersz wariantu przez `FOR UPDATE`. Dzięki temu dwie pierwsze ceny lub dwie zmiany z tej samej wersji nie mogą obie zostać zaakceptowane. Operacje różnych wariantów mają odrębne blokady. Hash blokady może powodować jedynie dodatkowe oczekiwanie przy kolizji; unikalny indeks zabezpiecza faktyczny klucz.
+- Od 31.10.2026 transakcja najpierw pobiera wspólną blokadę zapisu katalogu (opisaną poniżej), następnie blokadę doradczą per autor/klucz operacji, sprawdza ponowienie, a potem blokuje wiersz wariantu przez `FOR UPDATE`. Dzięki temu dwie pierwsze ceny lub dwie zmiany z tej samej wersji nie mogą obie zostać zaakceptowane. Blokady wierszy wariantów są odrębne, ale pierwsza wersja promocji dodatkowo serializuje zapisy wspólną blokadą. Hash blokady może powodować jedynie dodatkowe oczekiwanie przy kolizji; unikalny indeks zabezpiecza faktyczny klucz.
 - Udane operacje są utrwalone bez dodatkowej tabeli w `variant_price_changes`: `operation_key`, `changed_by_user_id`, `previous_price_change_id`. Unikalna para autor/klucz działa dla całego serwisu, także między wariantami. Poprzedni wpis ma FK do historii. Id autora jest informacją audytową bez FK do konta, aby historia nie zależała od późniejszego usunięcia użytkownika; samo zapisanie UUID nie stanowi autoryzacji.
 - Powtórzenie z tym samym autorem, kluczem i znormalizowaną treścią zwraca oryginalny wynik (`Replayed`), również po kolejnej zmianie ceny. Inna treść pod tym samym kluczem daje `OperationKeyConflict`. Nieudane operacje nie rezerwują klucza. Klucz ma format UUID; kontroler odczytuje go z nagłówka `Idempotency-Key`.
 - Bieżąca cena z rabatem (`SellingAmount != BaseAmount`) daje `DiscountedPriceConflict`, a przyszły wpis PLN daje `FuturePriceConflict`. Jest to ograniczenie pierwszego etapu: nie usuwamy ani nie zastępujemy takich danych bez modelu promocji/harmonogramu.
@@ -184,11 +186,23 @@ Decyzja właściciela projektu z 31.10.2026: zachowujemy `variantId` w adresie i
 
 Migracja `20261029140926_AddPriceChangeOperations` dodaje trzy opcjonalne kolumny, indeksy, FK i CHECK spójności metadanych. Nie modyfikuje istniejących cen, schematu `auth`, RLS ani triggera niezmienności. Sprawdzono ją na lokalnej izolowanej bazie PostgreSQL 17 z istniejącą historią; liczba i kontrolny skrót ID/kwot/dat rekordów były identyczne przed i po migracji. W pierwszym etapie zastosowano ją tylko lokalnie; 31.10.2026 zastosowano ją również w skonfigurowanej bazie Supabase.
 
-Seeder zachowuje historyczne dane demonstracyjne z metadanymi operacji równymi null. To świadomy wyjątek z zasad utrzymania seedera: dane demonstrują stany cen, a nie działania zalogowanego administratora, więc nie tworzymy fikcyjnych autorów/kluczy. Nie dodano tabel ani typów rekordów do liczników. Test integracyjny potwierdził ponowny reset seedera także po zapisaniu operacji serwisem; istniejący jawny zakres dziewięciu tabel jest wystarczający.
+Seeder zachowuje historyczne dane demonstracyjne z metadanymi operacji równymi null. To świadomy wyjątek z zasad utrzymania seedera: dane demonstrują stany cen, a nie działania zalogowanego administratora, więc nie tworzymy fikcyjnych autorów/kluczy. Nie dodano tabel ani typów rekordów do liczników. Test integracyjny potwierdził ponowny reset seedera także po zapisaniu operacji serwisem; w tym pierwszym etapie zakres dziewięciu tabel był wystarczający; etap promocji poniżej rozszerza go do czternastu.
 
 - [x] Serwis dopisywania zwykłej ceny i migracja metadanych operacji.
 - [x] Testy walidacji, pierwszej ceny, wersji, ponowień, konfliktu klucza między wariantami i zapisów równoczesnych.
 - [x] Testy niezmienności historii, unikalności operacji i zgodności seedera na PostgreSQL.
 - [x] Zastosowanie migracji metadanych operacji i uprawnień w Supabase (31.10.2026).
 - [x] Uprawnienia administratora i trzy endpointy ceny wariantu (31.10.2026); szczegóły w [instrukcji administratora](administrator-access.md).
-- [ ] Model promocji, okresy oferowania, obniżki i odczyt wcześniejszej ceny.
+- [x] Model promocji produktu, okresy oferowania, obniżki i odczyt wcześniejszej ceny (31.10.2026).
+
+## Wdrożone promocje produktu — 31.10.2026
+
+`PromotionService` jest scoped, korzysta z `TimeProvider.System`. Tworzy/edytuje szkic, wylicza podgląd, atomowo uruchamia i kończy promocję. Jedna akcja dotyczy jednego produktu, bez łączenia rabatów, w PLN. Opublikowane warianty są utrwalane przy starcie; nowy wariant nie dołącza sam. Nie można edytować aktywnej reguły ani zmienić zwykłej ceny wariantu do zakończenia akcji. Zero jako wynik jest dopuszczone, kwoty końcowe zaokrąglane do grosza `AwayFromZero`; reguły VAT i darmowego checkoutu nie są implementowane.
+
+`PriorPriceCalculator` przecina historię widoczności z historią faktycznych cen sprzedaży. Okno poprzedzające start to 30 dni lokalnych `Europe/Warsaw`, ze znaną krótszą ofertą lub blokadą niekompletnej historii. Minimum i zakres są zapisywane w niezmiennym `PriceReduction`; publiczne odczyty nie wyliczają ich ponownie względem dzisiejszej daty. Cena wynikowa musi być niższa od wcześniejszej. Wyjątki dla szczególnych rodzajów towarów pozostają poza pierwszą wersją.
+
+Nowe tabele: `promotions`, `promotion_variants`, `price_reductions`, `variant_offer_events`, `promotion_operations`. Historia cen dostaje opcjonalne `promotion_operation_id`, `price_reduction_id`. Ceny pochodne mają autora/klucz na nadrzędnej operacji; przestrzeń kluczy promocji jest odrębna od zwykłej ceny. Historia nie dostaje fikcyjnych metadanych po migracji.
+
+Wszystkie aplikacyjne zapisy cen/promocji, triggery zapisu katalogu i seeder pobierają najpierw tę samą blokadę transakcyjną `(20261031,3)`. To świadome uproszczenie serializujące zapisy; odczyty działają równolegle. Szczegółowa kolejność, powód i pomiar są w [planie promocji](promotion-implementation-plan.md).
+
+Migracja `20261031120821_AddProductPromotions` została zastosowana na lokalnym PostgreSQL i w skonfigurowanym Supabase. Próba na 43 467 istniejących cenach zachowała identyczny skrót ID/kwot/dat i liczbę rekordów. Importowane warianty zaczynają z niepełną historią widoczności; do aktywacji wymagają wiarygodnego okna, a nie cofnięcia daty publikacji. Seeder ma jawnie syntetyczne scenariusze, 14 tabel resetu i pięć nowych liczników. Instrukcja użycia i publiczne DTO: [api-contract.md](api-contract.md#promocje-produktu).

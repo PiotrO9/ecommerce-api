@@ -35,3 +35,18 @@ dotnet run --project tests/performance/load.csproj -- `
 ```
 
 `benchmark.ps1` wykonuje 5 rozgrzewek oraz 40 kolejnych mierzonych żądań na scenariusz i zapisuje p50/p95 do JSON. Dostępne są `-Phase large`, `-Phase controlled`, `-Phase facets` (trzy przypadki bez ceny) i `-Phase price` (cenowy GET). `load.csproj` wykonuje 3 rozgrzewki i po 50 żądań na scenariusz z maksymalnie pięcioma jednoczesnymi. Porównuj wyniki dla tej samej bazy, ustawień API, liczby próbek i bez diagnostycznego logowania SQL. Szczegóły zestawu bazowego i poprzednie wyniki są w [audycie](../../docs/catalog-performance-audit.md).
+
+## Pomiar promocji
+
+Na przygotowanej i zmigrowanej lokalnej bazie `ecomm_perf*` z 5000 syntetycznych produktów:
+
+```powershell
+$env:ECOMMERCE_PERFORMANCE_DATABASE = 'Host=127.0.0.1;Database=ecomm_perf_catalog;Username=postgres;Password=...'
+dotnet run --configuration Release --project tests/performance/promotions/promotions.csproj
+dotnet run --configuration Release --project tests/performance/promotions/promotions.csproj -- --activate-existing
+dotnet run --configuration Release --project tests/performance/promotions/promotions.csproj -- --read-count
+```
+
+Pierwsze polecenie dodaje 50 unikalnych wariantów do `demo-czapka`, syntetyczną historię oraz wykonuje 3 rozgrzewki i 10 mierzonych cykli. Wypisuje p50/p95 i liczbę komend EF dla podglądu/startu/końca. Odmawia ponownego przygotowania tej samej bazy; odtwórz bazę demonstracyjną do kolejnej serii. `--activate-existing` uruchamia większy rabat po serii, do pomiaru odczytów HTTP podczas promocji. `--read-count` sprawdza liczbę komend katalogu i wyszukiwania. Żaden z tych trybów nie przyjmuje połączenia zdalnego ani nazwy bazy spoza `ecomm_perf*`.
+
+Harness zmienia dane syntetyczne. Nie kieruj go na projekt Supabase. Jeżeli API Release korzysta z tych samych plików wynikowych, zatrzymaj własną instancję pomiarową przed przebudową albo użyj osobnego katalogu artifacts.

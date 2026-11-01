@@ -12,8 +12,8 @@ public sealed class DemoCatalogSeedDataTests
     {
         var data = DemoCatalogSeedData.Create(new DemoSeedOptions(new(3, 3), new(2, 2), new(1, 1)), Now);
 
-        Assert.Equal(27, data.Entities.Count);
-        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4), data.Created);
+        Assert.Equal(30, data.Entities.Count);
+        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4, OfferEvents: 3), data.Created);
         Assert.All(data.Entities.OfType<VariantPriceChange>(), price =>
         {
             Assert.Null(price.OperationKey);
@@ -36,10 +36,10 @@ public sealed class DemoCatalogSeedDataTests
         Assert.Equal(500, data.Created.Products);
         Assert.Equal(3000, data.Created.Variants);
         Assert.Equal(3000, data.Created.Stocks);
-        Assert.Equal(3001, data.Created.PriceChanges);
-        Assert.Equal(data.Entities.Count, data.Created.Categories + data.Created.Products + data.Created.Variants
-            + data.Created.AttributeKeys + data.Created.AttributePairs + data.Created.ProductCategoryLinks
-            + data.Created.VariantAttributeLinks + data.Created.Stocks + data.Created.PriceChanges);
+        Assert.Equal(3025, data.Created.PriceChanges);
+        Assert.Equal(3, data.Created.Promotions);
+        Assert.Equal(18, data.Created.PriceReductions);
+        Assert.Equal(data.Entities.Count, data.Created.Sum());
         AssertValidRelations(data);
 
         var variantPairs = data.Entities.OfType<VariantAttributePair>().ToLookup(link => link.VariantId);

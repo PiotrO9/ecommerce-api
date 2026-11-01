@@ -72,3 +72,23 @@ Po zmianie modelu: wygeneruj migrację EF, sprawdź zakres tworzonych obiektów,
 ## Otwarte sprawdzenia
 
 Migracja jest zastosowana, ale nadal trzeba sprawdzić w prawdziwej bazie metadane klucza obcego i uprawnień oraz przeprowadzić test dwóch kont przez API. Testy jednostkowe nie potwierdzają tych właściwości środowiska Supabase.
+
+## Promocje i historia oferty — 31.10.2026
+
+Migracja `20261031120821_AddProductPromotions` jest zastosowana na odizolowanym PostgreSQL 17 i w skonfigurowanym Supabase. Dodaje pięć tabel `app`, bez zmian w `auth`:
+
+- `promotions`: UUID, FK produktu, nazwa, rodzaj/wartość rabatu, stan, wersja, autor i daty. Kwoty reguły `numeric(18,2)`. PLN jest stałą pierwszej wersji serwisu, bez osobnego pola waluty promocji.
+- `promotion_variants`: UUID, FK promocji i wariantu, daty udziału. Unikalna para promocja/wariant i unikalny `variant_id WHERE ended_at IS NULL`.
+- `price_reductions`: UUID, unikalny FK udziału, FK wariantu, wcześniejsza cena `numeric(18,2)`, zakres i początek obniżki oraz `Full30Days`/`SinceFirstOffer`.
+- `variant_offer_events`: `bigint` identity, FK wariantu, czas UTC, widoczność, kompletność historii od utworzenia, źródło `database`/`import`/`demo`. Indeks wariant/czas/ID.
+- `promotion_operations`: UUID, autor/klucz UUID, FK promocji, komenda, hash żądania, wynik `jsonb`, kod sukcesu i czas. Unikalny autor/klucz; demonstracyjne operacje mają `kind=demo` bez autora i klucza.
+
+`variant_price_changes` otrzymuje opcjonalne FK `promotion_operation_id` i `price_reduction_id`. CHECK metadanych dopuszcza dotychczasowe wpisy i nowy rodzaj ceny pochodnej, którego audyt pochodzi z operacji promocji. FK mają `RESTRICT`. Nowe tabele mają RLS i odebrany dostęp rolom Data API. Historia cen pozostaje niezmienna; dodatkowo triggery blokują UPDATE/DELETE zdarzeń oferty, zapisanych obniżek i operacji promocji.
+
+Triggery rejestrują zmiany widoczności po zapisie wariantu, statusu produktu oraz przypisania kategorii. Używają rzeczywistego czasu transakcji, także przy SQL spoza API. Pierwszy stan istniejących wariantów to `source=import`, `complete_from_birth=false`; migracja nie odtwarza nieznanej przeszłości z `PublishedAt`.
+
+Zapisy katalogu/pricingu są serializowane wspólną blokadą transakcyjną `(20261031,3)`: serwisy pobierają ją przed innymi blokadami, a SQL obejmują triggery BEFORE STATEMENT. Zwykłe odczyty nie pobierają tej blokady. Seeder ma spójny zakres 14 tabel w jednym `TRUNCATE ... RESTRICT`, z wyłączeniem kont, profili i administratorów.
+
+Próba migracji na bazie 5000 produktów zachowała 43 467 cen i MD5 ID/podstawy/ceny sprzedaży/dat: `4784df91e3799f9e12edb2a5aac3296c`. Powstało 16 082 początkowych niepełnych zdarzeń importu. Testy PostgreSQL obejmują ograniczenia, wycofanie częściowego zapisu, współbieżność i ponowny reset. Szczegóły reguł: [promocje](promotion-implementation-plan.md).
+
+Pełny zestaw migracji przetestowano również na nowej izolowanej bazie, następnie cofnięto i ponownie zastosowano migrację promocji bez danych. Po utworzeniu pochodnych cen migracja Down jawnie odmawia cofnięcia: wymagane jest zachowanie historii i kolejna migracja naprawcza, zamiast usuwania zapisów obniżek.

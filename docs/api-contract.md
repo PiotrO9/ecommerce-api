@@ -43,19 +43,19 @@ Błędy: `401` bez sesji; `403` bez uprawnienia lub wymaganego nagłówka CSRF; 
 | `GET /api/v1/web/profile/me` | Ciasteczko sesji | `200`, `userId`, `firstName`, `lastName` | `401` bez ważnej sesji, `404` przed pierwszym zapisem profilu, `503` gdy usługa lub baza jest niedostępna |
 | `PUT /api/v1/web/profile/me` | Ciasteczko sesji, `X-Requested-With: XMLHttpRequest`, JSON `firstName`, `lastName` | `200`, `userId`, `firstName`, `lastName` | `400` dla nieprawidłowych danych, `401` bez ważnej sesji, `403` bez wymaganego nagłówka, `503` gdy usługa lub baza jest niedostępna |
 
-Endpoint `POST /api/v1/web/seed` jest dostępny tylko w środowisku `Development` po ustawieniu `DemoSeed:Enabled=true` i klucza `DemoSeed:Key`. Wymaga nagłówka `X-Demo-Seed-Key`; poprawne wywołanie najpierw czyści wszystkie rekordy z dziewięciu tabel katalogu, stanów i historii cen, także spoza seedera, a następnie tworzy nowy zestaw. Nie dotyka kont, profili ani tabel `auth`. Reset i seed są jedną transakcją. Odpowiedź `200` zawiera `added` oraz `created` z licznikami nowych rekordów; błędny klucz daje `404`. Opcjonalne body JSON przyjmuje niezależne pola `categories`, `products`, `variants` z poziomami `low`, `med`/`medium`, `high` (domyślnie `medium` dla kategorii i produktów oraz `low` dla wariantów); każdy poziom losuje cel z opisanego w dokumentacji zakresu, a niepoprawny poziom daje `400`. Szczegóły zakresów i uruchomienia są w [demo-seed.md](demo-seed.md).
+Endpoint `POST /api/v1/web/seed` jest dostępny tylko w środowisku `Development` po ustawieniu `DemoSeed:Enabled=true` i klucza `DemoSeed:Key`. Wymaga nagłówka `X-Demo-Seed-Key`; poprawne wywołanie najpierw czyści wszystkie rekordy z czternastu tabel katalogu, promocji i oferty, stanów i historii cen, także spoza seedera, a następnie tworzy nowy zestaw. Nie dotyka kont, profili ani tabel `auth`. Reset i seed są jedną transakcją. Odpowiedź `200` zawiera `added` oraz `created` z licznikami nowych rekordów; błędny klucz daje `404`. Opcjonalne body JSON przyjmuje niezależne pola `categories`, `products`, `variants` z poziomami `low`, `med`/`medium`, `high` (domyślnie `medium` dla kategorii i produktów oraz `low` dla wariantów); każdy poziom losuje cel z opisanego w dokumentacji zakresu, a niepoprawny poziom daje `400`. Szczegóły zakresów i uruchomienia są w [demo-seed.md](demo-seed.md).
 
 `GET /api/v1/web/categories` bez `rootId` zwraca wszystkie kategorie główne z potomkami; pusty katalog daje `[]`. Z `rootId` odpowiedź zawiera jedno drzewo, którego korzeniem jest wskazana kategoria, bez jej przodków i sąsiednich gałęzi. Każdy węzeł ma `id`, `parentId`, `displayName`, `slug` i tablicę `children`. Rodzeństwo jest obecnie sortowane alfabetycznie po `displayName`, z `id` jako rozstrzygnięciem remisu. Ten endpoint zwraca wyłącznie kategorie; produkty są dostępne przez `GET /api/v1/web/products/by-category`.
 
 `GET /api/v1/web/categories/{id}` zwraca dane wskazanej kategorii: `id`, `displayName`, `slug`, `parentId`, `createdAt`, `updatedAt` oraz `path`. `path` zawiera elementy `{id, displayName, slug}` od kategorii głównej do wskazanej włącznie. Nie zawiera podkategorii ani produktów; do pobrania gałęzi służy `GET /api/v1/web/categories?rootId={id}`. Ponieważ `slug` jest unikalny tylko wśród rodzeństwa, odczyt pojedynczej kategorii używa UUID.
 
-`GET /api/v1/web/products` wymaga dokładnie jednego z parametrów `id` i `slug`. Wartość `slug` jest przed wyszukaniem przycinana i zamieniana na małe litery. Odpowiedź zwraca `id`, `name`, `slug`, daty produktu, `categories` (`id`, `displayName`, `slug`) i `variants`. Wariant zawiera `id`, `sku`, opisy, `imageUrls`, daty, `attributes` (`code`, `displayName` klucza, `value`), `quantityOnHand` oraz `currentPrices` (`amount`, `currency`). Pole `quantityOnHand=null` oznacza brak rekordu stanu, a `0` oznacza znany zerowy stan. Endpoint pokazuje tylko produkt w statusie `Published` z przypisaną kategorią i opublikowanymi wariantami z obowiązującą ceną. W `currentPrices` jest ostatnia cena sprzedaży dla każdej waluty z `effectiveAt` nie późniejszym niż chwila odczytu; przy tej samej dacie skuteczności rozstrzygają `createdAt`, potem `id`. Nie zwraca historii cen, ceny przed obniżką ani oznaczenia promocji. Zasady promocji i informacji o wcześniejszej cenie pozostają osobnym zadaniem.
+`GET /api/v1/web/products` wymaga dokładnie jednego z parametrów `id` i `slug`. Wartość `slug` jest przed wyszukaniem przycinana i zamieniana na małe litery. Odpowiedź zwraca `id`, `name`, `slug`, daty produktu, `categories` (`id`, `displayName`, `slug`) i `variants`. Wariant zawiera `id`, `sku`, opisy, `imageUrls`, daty, `attributes` (`code`, `displayName` klucza, `value`), `quantityOnHand` oraz `currentPrices` (`amount`, `currency`, `baseAmount`, `variantId`, `reduction`). Pole `quantityOnHand=null` oznacza brak rekordu stanu, a `0` oznacza znany zerowy stan. Endpoint pokazuje tylko produkt w statusie `Published` z przypisaną kategorią i opublikowanymi wariantami z obowiązującą ceną. W `currentPrices` jest ostatnia cena sprzedaży dla każdej waluty z `effectiveAt` nie późniejszym niż chwila odczytu; przy tej samej dacie skuteczności rozstrzygają `createdAt`, potem `id`. Nie zwraca całej historii ani audytu administratora. Obowiązująca promocja ma zapisane odniesienie w `reduction`; kontrakt i przykład są poniżej.
 
 `GET /api/v1/web/products/catalog` zwraca wszystkie widoczne produkty, niezależnie od ich kategorii. Każdy produkt musi nadal mieć przynajmniej jedną przypisaną kategorię oraz opublikowany wariant z obowiązującą ceną. Zwraca `items` z lekkimi pozycjami listy oraz `pagination`; domyślna kolejność to nazwa produktu, potem ID. Pusty katalog daje `items: []`.
 
 `GET /api/v1/web/products/by-category` zwraca obiekt z `items` i `pagination`. Elementy `items` mają ten sam lekki format co ogólny katalog. Lista obejmuje bezpośrednie przypisania do kategorii oraz wszystkie jej podkategorie; produkt przypisany do kilku pasujących kategorii pojawia się raz. Stosuje te same warunki widoczności produktu i wariantów co odczyt szczegółów. Istniejąca kategoria bez widocznych produktów daje `items: []`. Slug kategorii jest przycinany i zamieniany na małe litery, ale jest unikalny tylko wśród rodzeństwa. Jeśli pasuje do kilku kategorii w różnych gałęziach, endpoint zwraca `409`; wtedy trzeba wskazać `categoryId`.
 
-Każda pozycja `items` w `catalog`, `by-category` i `search` ma `id`, `name`, `slug`, `thumbnailUrl` oraz `pricesFrom`. Miniatura to pierwsze zdjęcie pierwszego pasującego wariantu według SKU, który ma zdjęcie; gdy żaden go nie ma, wartość to `null`. `pricesFrom` zawiera najniższą bieżącą cenę sprzedaży **pasujących wariantów** osobno dla każdej waluty, jako `{amount, currency}`. Dla wariantu wybierana jest ostatnia obowiązująca zmiana ceny według `effectiveAt`, `createdAt`, `id`; następnie minimum w obrębie waluty. Przy filtrze cenowym `pricesFrom` zawiera wyłącznie PLN; bez niego może zawierać także inne waluty. Warunki `q` trafiającego w SKU, cech i ceny wpływają na to, które warianty budują kafelek. Bez takich warunków są to wszystkie widoczne, wycenione warianty produktu. Odpowiedź listy nie zawiera opisów, stanów ani historii cen; do ich pobrania służą szczegóły produktu. Zmiana formatu `items` względem wcześniejszego pełnego produktu wymaga aktualizacji klienta API.
+Każda pozycja `items` w `catalog`, `by-category` i `search` ma `id`, `name`, `slug`, `thumbnailUrl` oraz `pricesFrom`. Miniatura to pierwsze zdjęcie pierwszego pasującego wariantu według SKU, który ma zdjęcie; gdy żaden go nie ma, wartość to `null`. `pricesFrom` zawiera najniższą bieżącą cenę sprzedaży **pasujących wariantów** osobno dla każdej waluty, jako `{amount, currency, baseAmount, variantId, reduction}`. Dla wariantu wybierana jest ostatnia obowiązująca zmiana ceny według `effectiveAt`, `createdAt`, `id`; następnie minimum w obrębie waluty. Przy filtrze cenowym `pricesFrom` zawiera wyłącznie PLN; bez niego może zawierać także inne waluty. Warunki `q` trafiającego w SKU, cech i ceny wpływają na to, które warianty budują kafelek. Bez takich warunków są to wszystkie widoczne, wycenione warianty produktu. Odpowiedź listy nie zawiera opisów, stanów ani historii cen; do ich pobrania służą szczegóły produktu. Zmiana formatu `items` względem wcześniejszego pełnego produktu wymaga aktualizacji klienta API.
 
 `GET /api/v1/web/products/filter-options` bez parametrów zbiera cechy ze wszystkich widocznych produktów. `categoryId` lub `slug` ogranicza je do kategorii i jej potomków. Odpowiedź to tablica `{code, displayName, values}` uporządkowana po nazwie klucza i kodzie; wartości są unikalne i sortowane alfabetycznie. Cechy pochodzą wyłącznie z opublikowanych wariantów z obowiązującą ceną, należących do opublikowanych produktów z kategorią. Endpoint nie uwzględnia bieżących `q` ani wybranych filtrów; frontend może użyć jego `code` i `values` w `POST /products/search`.
 
@@ -161,3 +161,92 @@ Przykład odpowiedzi `/api/v1/web/auth/me` przed pierwszym zapisem profilu:
 ## Plany i sprawy otwarte
 
 Endpointów logowania przez Google lub Apple nie ma jeszcze w kodzie. Kontrakt dla frontendu działającego na innej witrynie, w tym CORS, cookies i CSRF, nie został ustalony. Przed publikacją należy przetestować powyższe odpowiedzi z prawdziwym Supabase i PostgreSQL; testy lokalne korzystają także z atrap.
+
+## Promocje produktu
+
+Stan na 31.10.2026: siedem tras pod `/api/v1/web/admin/promotions`, z tą samą sesją i weryfikacją administratora co ceny wariantu. Wszystkie odpowiedzi kontrolera mają `Cache-Control: no-store`. Mutacje wymagają `X-Requested-With: XMLHttpRequest` oraz `Idempotency-Key` z niepustym UUID. Podgląd jest odczytem bez body, CSRF i klucza ponowienia. Nieznane pola body są odrzucane. Daty i autor pochodzą z serwera.
+
+| Metoda / końcówka | Wejście | Wynik |
+| --- | --- | --- |
+| `POST /promotions` | `productId`, `name`, `discountType`, `discountValue` | `201`, `{replayed:false,promotion}` |
+| `GET /promotions` | Query: `page=1`, `pageSize=20` (1–100), opcjonalnie `status=Draft/Active/Ended`, `productId` | `{items,page,pageSize,totalItems,totalPages}` |
+| `GET /promotions/{id}` | UUID | `promotion` |
+| `PUT /promotions/{id}` | Pełna reguła jak przy tworzeniu oraz `expectedVersion` | Zaktualizowany szkic w `{replayed,promotion}` |
+| `POST /promotions/{id}/preview` | Query `page=1`, `pageSize=20` (1–100), bez body | `{id,version,canActivate,page,pageSize,totalVariants,errors,expectedPrices,items}` |
+| `POST /promotions/{id}/activate` | `expectedVersion`, `variants:[{variantId,expectedPriceChangeId}]` | Atomowy start, `{replayed,promotion}` |
+| `POST /promotions/{id}/end` | `expectedVersion` | Atomowy koniec, `{replayed,promotion}` |
+
+`promotion`: `id`, `productId`, `name`, `discountType`, `discountValue`, `currency`, `status`, `version`, daty `createdAt`, `updatedAt`, `activatedAt`, `endedAt` oraz `variants` z `variantId`, `startedAt`, `endedAt`, `priorAmount`, `referenceStart`. W szkicu `variants` jest puste. `version` rośnie po każdej edycji/start/koniec.
+
+`preview.items` zawiera `variantId`, `sku`, `expectedPriceChangeId`, `baseAmount`, `sellingAmount`, `priorAmount`, `referenceStart`, `referenceBasis`, `errors`. Tylko `items` jest stronicowane. `expectedPrices` zawiera minimalną listę wersji **wszystkich** wariantów, a `canActivate` i `errors` dotyczą całego produktu, niezależnie od strony. Podgląd nie zapisuje ani nie rezerwuje ceny. Aktywacja ponownie sprawdza pełny skład, wersje, stan i historię.
+
+Reguły: `percentage` w zakresie (0,100], `amount` > 0 i <= podstawy każdego wariantu, najwyżej dwa miejsca po przecinku. PLN, zaokrąglenie końcowej kwoty do grosza od połowy w górę; wynik zero dopuszczony. Jedna aktywna promocja per wariant. Produkt musi być opublikowany i mieć kategorię; wszystkie jego opublikowane warianty muszą przejść walidację. Skład zostaje zamrożony podczas startu. Cena musi być niższa od wcześniejszego minimum. Zwykła zmiana ceny w aktywnej promocji daje `409 discounted_price_conflict`.
+
+Błędy kontrolera mają `{code,message}` (błędy automatycznej walidacji MVC mogą mieć format ProblemDetails): `400` dla danych, wersji, klucza i paginacji, `401`/`403` dla dostępu i CSRF, `404` dla promocji/produktu, `409` dla stanu, wersji, składu/ceny i klucza, `503` przy niedostępności Auth/bazy. Typowe kody konfliktów: `promotion_version_conflict`, `promotion_state_conflict`, `promotion_not_ready`, `price_or_scope_conflict`, `price_timestamp_conflict`, `idempotency_key_conflict`.
+
+Podgląd może zwrócić `200` i `canActivate=false`: sprawdź `errors` całego produktu (`promotion_not_draft`, `product_not_visible`, `no_variants`) i wariantów (`missing_price`, `future_price`, `active_promotion`, `unmanaged_discount`, `invalid_discount`, `incomplete_or_empty_offer_history`, `not_below_prior_price`). Niekompletna historia importowanego wariantu nie jest zastępowana ceną podstawową. W takim przypadku użyj wiarygodnych danych albo poczekaj na pełne okno; nie cofaj dat rzeczywistych ofert dla obejścia walidacji.
+
+Klucz operacji jest unikalny per autor w całym module promocji, także między trasami. Zwykła zmiana ceny ma osobną przestrzeń kluczy. Nowa komenda wymaga nowego klucza; ponowienie po utracie odpowiedzi używa tego samego klucza i identycznej znormalizowanej treści. Udane ponowienie daje `200`, `replayed=true` i oryginalną odpowiedź, również po dalszych zmianach statusu. Nie uruchamia ponownie zakończonej akcji. Nieudana komenda nie rezerwuje klucza.
+
+### Pełny test w Postmanie
+
+Założenie: `{{host}}` zawiera już `https://localhost:3100/api/v1/web`; po restarcie API zaloguj konto administratora jak w [administrator-access.md](administrator-access.md). Postman zachowuje cookie sesji. W środowisku developerskim po świadomym resecie seedera produkt `demo-czapka` ma syntetyczną kompletną historię do tego testu. Zwykła migracja nie dorabia kompletnej historii starym produktom.
+
+1. `GET {{host}}/products?slug=demo-czapka`: zapisz główne `id` jako `productId`.
+2. `POST {{host}}/admin/promotions`, nagłówki `Content-Type: application/json`, `X-Requested-With: XMLHttpRequest`, `Idempotency-Key: {{$guid}}`, body:
+
+```json
+{
+  "productId": "{{productId}}",
+  "name": "Test -20%",
+  "discountType": "percentage",
+  "discountValue": 20
+}
+```
+
+Z odpowiedzi `201` zapisz `promotion.id` jako `promotionId`. Na tym etapie ceny się nie zmieniają. UUID dynamiczne `{{$guid}}` nadaje się do nowej operacji; do rzeczywistego ponowienia skopiuj i zachowaj wysłany UUID, ponieważ kolejne rozwinięcie zmiennej w Postmanie tworzy inny klucz.
+
+3. `POST {{host}}/admin/promotions/{{promotionId}}/preview?page=1&pageSize=20`, bez body. Sprawdź `canActivate=true`. Możesz w zakładce Post-response zapisać:
+
+```javascript
+const preview = pm.response.json();
+pm.environment.set("promotionVersion", preview.version);
+pm.environment.set("promotionExpectedPrices", JSON.stringify(preview.expectedPrices));
+```
+
+4. `POST {{host}}/admin/promotions/{{promotionId}}/activate`, oba nagłówki ochronne jak przy tworzeniu, **nowy UUID** klucza, body raw JSON:
+
+```json
+{
+  "expectedVersion": {{promotionVersion}},
+  "variants": {{promotionExpectedPrices}}
+}
+```
+
+Oczekuj `200`, `promotion.status=Active`; zapamiętaj zwrócone `promotion.version`. Ponowienie tego samego body i tego samego rzeczywistego klucza daje `replayed=true`, bez nowych cen. Nie aktualizuj wersji wewnątrz ponawianego żądania.
+
+5. `GET {{host}}/products?slug=demo-czapka` i `GET {{host}}/products/catalog?q=Czapka` pokazują obniżkę. Sprawdź też `POST {{host}}/products/search` z body `{"q":"Czapka","minPrice":0,"maxPrice":100,"sort":"price-asc"}`. Filtry działają po cenie po rabacie.
+6. `POST {{host}}/admin/promotions/{{promotionId}}/end`, **nowy UUID** klucza, nagłówek CSRF i body `{"expectedVersion":2}` (albo bieżąca wersja z aktywacji, jeżeli wcześniej edytowano szkic). Status `Ended`, kolejny wpis ceny bez rabatu, w publicznym odczycie `reduction=null`.
+7. Powtórz zakończenie z zachowanym kluczem i body — brak nowych rekordów. Następnie spróbuj z nowym kluczem uruchomić zakończoną promocję: `409`. Zwykłe konto bez uprawnienia dla każdej trasy powinno dostać `403`.
+
+### Publiczne ceny na wariancie i kafelku
+
+`currentPrices` szczegółów i `pricesFrom` kafelka zachowują `amount`, `currency` i dostają `baseAmount`, `variantId`, `reduction`. `amount` jest ceną oferowaną. Przy aktywnej promocji:
+
+```json
+{
+  "amount": 80.00,
+  "currency": "PLN",
+  "baseAmount": 100.00,
+  "variantId": "uuid-wariantu",
+  "reduction": {
+    "priorAmount": 90.00,
+    "referenceStart": "2026-10-01T10:00:00Z",
+    "startedAt": "2026-10-31T11:00:00Z",
+    "basis": "Full30Days",
+    "savingPercent": 11.11
+  }
+}
+```
+
+Reguła może wynosić 20% od 100 PLN, ale zniżka względem wcześniejszej ceny 90 PLN to 11,11%. UI komunikujące procent korzysta z `savingPercent`. `basis=SinceFirstOffer` oznacza znany krótszy okres. Przy tej samej obniżce `priorAmount` nie przesuwa się codziennie. Wszystkie kwoty na kafelku pochodzą z jednego najtańszego pasującego wariantu per waluta; remis rozstrzyga UUID. `reduction=null` oznacza brak zweryfikowanego zdarzenia obniżki, również dla starych rabatów demo — UI nie powinno dopowiadać wtedy oznaczenia promocji.

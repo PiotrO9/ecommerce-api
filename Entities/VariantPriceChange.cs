@@ -14,4 +14,7 @@ public sealed class VariantPriceChange
     public Guid? OperationKey { get; set; }
     public Guid? ChangedByUserId { get; set; }
     public Guid? PreviousPriceChangeId { get; set; }
+    public Guid? PromotionOperationId { get; set; }
+    public Guid? PriceReductionId { get; set; }
+    public PriceReduction? PriceReduction { get; set; }
 }

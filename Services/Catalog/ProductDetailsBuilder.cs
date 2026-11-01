@@ -1,5 +1,6 @@
 using E_commerce_backend.Contracts.Catalog;
 using E_commerce_backend.Entities;
+using E_commerce_backend.Services.Pricing;
 
 namespace E_commerce_backend.Services.Catalog;
 
@@ -54,8 +55,8 @@ public static class ProductDetailsBuilder
                 .ThenByDescending(price => price.CreatedAt)
                 .ThenByDescending(price => price.Id)
                 .First())
-            .Select(price => new ProductVariantPriceResponse(
-                price.SellingAmount, price.Currency))
+            .Select(price => PublicPriceBuilder.Build(price.SellingAmount, price.BaseAmount,
+                price.Currency, variant.Id, price.PriceReduction))
             .ToArray();
 
         if (currentPrices.Length == 0)

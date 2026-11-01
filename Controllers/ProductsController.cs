@@ -84,6 +84,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                     .ThenInclude(variant => variant.Stock)
                 .Include(product => product.Variants)
                     .ThenInclude(variant => variant.PriceChanges.Where(price => price.EffectiveAt <= now))
+                        .ThenInclude(price => price.PriceReduction)
                 .Include(product => product.Variants)
                     .ThenInclude(variant => variant.VariantAttributePairs)
                         .ThenInclude(link => link.AttributePair)
@@ -413,7 +414,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         database.VariantPriceChanges.FromSqlInterpolated($"""
             SELECT DISTINCT ON (variant_id)
                 id, variant_id, base_amount, selling_amount, currency, effective_at, created_at, reason,
-                operation_key, changed_by_user_id, previous_price_change_id
+                operation_key, changed_by_user_id, previous_price_change_id, promotion_operation_id, price_reduction_id
             FROM app.variant_price_changes
             WHERE currency = 'PLN' AND effective_at <= {now}
             ORDER BY variant_id, effective_at DESC, created_at DESC, id DESC
@@ -609,7 +610,7 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                     .ThenByDescending(candidate => candidate.CreatedAt)
                     .ThenByDescending(candidate => candidate.Id)
                     .Select(candidate => candidate.Id).First())
-            .Select(price => new { price.VariantId, price.Currency, price.SellingAmount })
+            .Select(price => new { price.VariantId, price.Currency, price.SellingAmount, price.BaseAmount, price.PriceReduction })
             .ToListAsync(cancellationToken);
         var variantsByProduct = variants.GroupBy(variant => variant.ProductId)
             .ToDictionary(group => group.Key, group => group.OrderBy(variant => variant.SKU,
@@ -624,8 +625,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 .SelectMany(variant => pricesByVariant.GetValueOrDefault(variant.Id) ?? [])
                 .GroupBy(price => price.Currency, StringComparer.Ordinal)
                 .OrderBy(group => group.Key, StringComparer.Ordinal)
-                .Select(group => new ProductVariantPriceResponse(group.Min(price => price.SellingAmount),
-                    group.Key)).ToArray();
+                .Select(group => group.OrderBy(price => price.SellingAmount).ThenBy(price => price.VariantId).First())
+                .Select(price => E_commerce_backend.Services.Pricing.PublicPriceBuilder.Build(price.SellingAmount,
+                    price.BaseAmount, price.Currency, price.VariantId, price.PriceReduction)).ToArray();
             return new ProductListItemResponse(product.Id, product.Name, product.Slug,
                 thumbnail, pricesFrom);
         }).ToArray();

@@ -154,6 +154,8 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 
 ## 3. Ceny, historia i promocje
 
+Pierwszy zakres 3.2–3.3 jest wdrożony: [promocje jednego produktu](promotion-implementation-plan.md), zapisane odniesienie wcześniejszej ceny i publiczne odczyty. Migracja w Supabase, 116 testów zaliczonych. Odbiór 01.11.2026: dodatkowo 23 sprawdzenia HTTPS z dwoma prawdziwymi kontami Supabase Auth i izolowanym lokalnym katalogiem; bez zmian w danych sklepu w Supabase.
+
 - [x] Ustalić, że każdy wariant może mieć własną cenę z walutą domyślnie `PLN`. Ustalenia są w [modelu cen](pricing-model.md).
 - [x] Ustalić, że wariant bez ceny może być szkicem, ale nie może zostać opublikowany ani sprzedany.
 - [x] Ustalić statusy `Draft`, `Published`, `Hidden` produktu i wariantu oraz nadrzędność statusu produktu przy ukrywaniu całej oferty.
@@ -161,11 +163,15 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Przyjąć koncepcyjnie historię jako kolejne rekordy z ceną podstawową i faktycznie oferowaną; przy obliczaniu minimum z 30 dni uwzględnić też ostatnią cenę obowiązującą na początku tego okresu.
 - [ ] Ustalić przejścia między statusami, precyzję kwot, obsługiwane waluty, cenę brutto/netto oraz zasady zaokrąglania.
 - [ ] Osobno ustalić, czy promocja dotyczy produktu czy wariantu, czym jest „kolekcja” i co robić przy nakładających się promocjach.
-- [ ] Zaprojektować i wdrożyć zapis historii cen **przed** uruchomieniem administracyjnej zmiany cen lub pokazywaniem obniżek.
-  Wdrożony pierwszy wycinek: `VariantPriceService` dopisuje zwykłą cenę PLN, kontroluje wersję i ponowienia operacji. Testy PostgreSQL potwierdziły pierwszą cenę, współbieżność i niezmienność historii. 31.10.2026 dodano uprawnienia administratora, endpointy ceny i zastosowano migracje w Supabase. Model promocji i zdarzenia obniżek pozostają do wdrożenia. Szczegóły w [modelu cen](pricing-model.md#wdrożony-pierwszy-etap--29102026).
+- [x] Zaprojektować i wdrożyć zapis historii cen **przed** uruchomieniem administracyjnej zmiany cen lub pokazywaniem obniżek.
+  `VariantPriceService` dopisuje zwykłą cenę PLN, kontroluje wersję i ponowienia. `PromotionService` atomowo zapisuje start/koniec promocji, zakres i wcześniejsze odniesienie. Historia jest niezmienna; triggery rejestrują ofertę. Migracje zastosowane w Supabase. Szczegóły w [modelu cen](pricing-model.md).
 - [ ] Dodać promocje procentowe i kwotowe dla pojedynczych produktów, kolekcji albo całej oferty, zgodnie z uzgodnionymi zasadami pierwszeństwa.
-- [ ] Udostępnić frontendowi cenę bieżącą oraz dane do pokazania najniższej ceny z 30 dni przed obniżką wszędzie tam, gdzie jest prezentowana promocja.
-- [ ] Zweryfikować interpretację wymogu Omnibus dla wariantów i następujących po sobie zmian cen przed wdrożeniem reguł do kodu.
+  - [x] Pojedynczy produkt, rabat procentowy/kwotowy, jeden aktywny udział wariantu, szkic/podgląd/start/koniec.
+  - [ ] Kolekcje i zakres całego katalogu, harmonogramy, rozbudowane zasady łączenia.
+- [x] Udostępnić frontendowi cenę bieżącą oraz dane do pokazania najniższej ceny z 30 dni przed obniżką wszędzie tam, gdzie jest prezentowana promocja.
+  Obejmuje obecne odczyty katalogu, kategorii, wyszukiwania i szczegółów zwykłych towarów. Znana krótka oferta ma osobną podstawę odniesienia; niepełna historia blokuje promocję. Szczególne rodzaje towarów pozostają poza pierwszą wersją.
+- [x] Zweryfikować interpretację wymogu Omnibus dla wariantów i następujących po sobie zmian cen przed wdrożeniem reguł do kodu.
+  Zakres zwykłych towarów i przyjęte granice opisuje [plan promocji](promotion-implementation-plan.md); szczególne towary i inne konstrukcje obniżek wymagają osobnej analizy.
 - [ ] Przetestować granice czasu, nakładające się promocje, zmianę ceny w trakcie koszyka i przypadki bez pełnej historii.
 
 **Warunek zakończenia:** ten sam wariant ma spójnie obliczaną cenę w katalogu i przy zakupie; historia potrzebna do prezentacji obniżki nie znika po czyszczeniu danych.

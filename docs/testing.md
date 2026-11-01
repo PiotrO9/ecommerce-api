@@ -10,7 +10,7 @@ Weryfikacja z 31.10.2026: build bez ostrzeżeń, 90/90 testów z lokalnym Postgr
 
 `Integration/PriceChangePostgresTests.cs` sprawdza serwis dopisywania cen: pierwszą cenę i aktualizację, wersje, ponowienie po kolejnej zmianie, równoczesne pierwsze zapisy i ponowienia, konflikt klucza między wariantami, istniejący rabat, przyszłą cenę i kolizję czasu. Sprawdza również rzeczywiste blokady `UPDATE`/`DELETE`, unikalny indeks operacji oraz reset seedera po zapisaniu cen. Wymaga migracji `AddPriceChangeOperations`. Obie klasy integracyjne korzystają z kolekcji `Postgres catalog`, aby ich destrukcyjne seedy nie działały równolegle. Test jednostkowy `VariantPriceServiceTests` sprawdza walidację przed otwarciem połączenia z bazą.
 
-`Integration/ProductSearchPostgresTests.cs` uruchamia rzeczywiste zapytania EF Core na lokalnym PostgreSQL. Sprawdza dopasowanie cech i ceny do tego samego wariantu, liczenie produktu raz przy kilku pasujących wariantach, alternatywy i zera filtrów, przyszłą cenę, brak ceny PLN oraz kolejność sortowania. Osobny scenariusz w tej klasie sprawdza sześć poziomów rankingu `q`, remisy po nazwie, stronicowanie, jawne `sort`, ranking po odfiltrowaniu droższego wariantu, dosłowne znaki specjalne i te same wyniki w trzech trasach. Test uruchamia seeder, który czyści dziewięć tabel katalogu, dlatego wymaga osobnej bazy o nazwie zaczynającej się od `ecomm_test_` na `localhost` albo `127.0.0.1`. Gdy zmienna nie jest ustawiona, xUnit oznacza test jako pominięty.
+`Integration/ProductSearchPostgresTests.cs` uruchamia rzeczywiste zapytania EF Core na lokalnym PostgreSQL. Sprawdza dopasowanie cech i ceny do tego samego wariantu, liczenie produktu raz przy kilku pasujących wariantach, alternatywy i zera filtrów, przyszłą cenę, brak ceny PLN oraz kolejność sortowania. Osobny scenariusz w tej klasie sprawdza sześć poziomów rankingu `q`, remisy po nazwie, stronicowanie, jawne `sort`, ranking po odfiltrowaniu droższego wariantu, dosłowne znaki specjalne i te same wyniki w trzech trasach. Test uruchamia seeder, który czyści czternaście tabel katalogu, dlatego wymaga osobnej bazy o nazwie zaczynającej się od `ecomm_test_` na `localhost` albo `127.0.0.1`. Gdy zmienna nie jest ustawiona, xUnit oznacza test jako pominięty.
 
 Po utworzeniu osobnej bazy i zastosowaniu migracji uruchom (na zwykłym PostgreSQL najpierw przygotuj minimalny schemat `auth` i role skryptem `tests/performance/bootstrap-local-postgres.sql`):
 
@@ -38,7 +38,7 @@ Po dodaniu odczytu cenowego ręczne próby HTTP na skonfigurowanym PostgreSQL sp
 - `Unit/CatalogModelTests.cs` sprawdza mapowanie relacji wariantu, ceny i stanu, indeksy kategorii, klucze tabel łączących oraz normalizację kodu cechy. Testy metadanych nie wykonują wyzwalaczy migracji; wymagają one osobnej próby na PostgreSQL.
 - `Unit/CategoryTreeBuilderTests.cs` sprawdza budowę pełnego drzewa, odcięcie gałęzi od kategorii pośredniej, zestaw ID kategorii z jej potomkami, pusty katalog i nieznane ID. Ręczna próba HTTP 22.10.2026 na lokalnie uruchomionym API i skonfigurowanej bazie potwierdziła odczyt drzewa, poddrzewa i danych pojedynczej kategorii oraz odpowiedzi `400` i `404`. Nadal brakuje automatycznego testu integracyjnego z PostgreSQL.
 - `Unit/ProductDetailsBuilderTests.cs` sprawdza filtrowanie ukrytych i pozbawionych ceny wariantów, wybór bieżącej ceny dla waluty, pomijanie ceny przyszłej, cechy i rozróżnienie nieznanego stanu od zera. `Unit/ProductsEndpointTests.cs` sprawdza odrzucenie braku parametru, obu parametrów oraz pustego `slug` dla produktu i kategorii, a także błędnych wartości stronicowania obu list przed dostępem do bazy. Ręczne próby HTTP 22.10.2026 na lokalnie uruchomionym API i skonfigurowanej bazie potwierdziły odczyt tego samego zasianego produktu przez `?id=` i `?slug=`, a także 251 unikalnych produktów z kategorii głównej przez `?categoryId=` i `?slug=`. Opcjonalne stronicowanie listy kategorii dało po 20 produktów na stronach 1 i 2 bez nakładania ID, 11 na stronie 13 i pustą stronę 14; brak `pageSize` zastosował wartość 20, a błędne parametry dały `400`. Po zmianie formatu odpowiedzi ręczny odczyt potwierdził `items` z 251 produktami i `pagination=null` bez parametrów, a na stronie 2: 20 produktów, `totalItems=251`, `totalPages=13` i poprawne znaczniki sąsiednich stron. Ogólna lista `/products/catalog` zwróciła 262 widoczne produkty, czyli więcej niż jedna kategoria główna, a strony 1 i 2 po 20 elementów bez powtórzonych ID; `totalItems=262`, `totalPages=14`. Błędne wartości paginacji dały `400`; ponowny odczyt szczegółów po slugu oraz listy z kategorii potwierdził, że wcześniejsze trasy nadal działają. Sprawdzono też odpowiedzi `400` dla braku lub obu parametrów kategorii i błędnego UUID oraz `404` dla nieznanego slugu. Seeder nie tworzy powtórzonych slugów kategorii, więc `409` nie było objęte ręczną próbą. Nadal brakuje automatycznego testu integracyjnego z PostgreSQL.
-- `Unit/DemoSeedAccessTests.cs` sprawdza rozpoznawanie poprawnego i błędnego klucza endpointu seedującego. `Unit/DemoSeedOptionsTests.cs` sprawdza zakresy domyślnych i niezależnych poziomów, granice losowania oraz odrzucanie niepoprawnych wartości. `Unit/DemoCatalogSeedDataTests.cs` sprawdza liczniki, relacje i unikalność zestawów wariantów dla zestawu bazowego i największego. Reset dziewięciu tabel i zapis wymagają osobnego testu na izolowanym PostgreSQL; instrukcja jest w [demo-seed.md](demo-seed.md).
+- `Unit/DemoSeedAccessTests.cs` sprawdza rozpoznawanie poprawnego i błędnego klucza endpointu seedującego. `Unit/DemoSeedOptionsTests.cs` sprawdza zakresy domyślnych i niezależnych poziomów, granice losowania oraz odrzucanie niepoprawnych wartości. `Unit/DemoCatalogSeedDataTests.cs` sprawdza liczniki, relacje i unikalność zestawów wariantów dla zestawu bazowego i największego. Reset czternastu tabel i zapis sprawdzają testy na izolowanym PostgreSQL; instrukcja jest w [demo-seed.md](demo-seed.md).
 - `Unit/ProfileEndpointTests.cs` sprawdza, że odczyt i zapis profilu bez sesji kończą się przed wywołaniem Supabase lub PostgreSQL, a zapis wymaga nagłówka chroniącego przed prostym żądaniem CSRF.
 - `Unit/PasswordResetTests.cs` sprawdza wysłanie linku, nieujawnianie braku konta, kolejność weryfikacji tokenu i zmiany hasła oraz format żądania do Mailtrap. Testy używają atrap HTTP; nie potwierdzają działania konta Mailtrap ani ustawień Supabase.
 - Funkcja demonstracyjna nie jest używana przez endpoint `GET /` i nie stanowi logiki biznesowej sklepu.
@@ -54,3 +54,57 @@ Filtry cech sprawdzono ręcznie 23.10.2026 przez HTTP na skonfigurowanej bazie w
 Gdy pojawią się reguły biznesowe, dodajemy ich testy jednostkowe do projektu testowego. Test powinien wywoływać kod bez uruchamiania serwera HTTP i bez zależności od bazy danych lub innych usług.
 
 Gdy AI tworzy testy, powinno sprawdzać zarówno poprawne wyniki, jak i oczekiwane niepowodzenia oraz istotne przypadki brzegowe. Dla scenariusza błędnego należy potwierdzić konkretne zachowanie wynikające z kontraktu kodu, np. właściwy wyjątek lub wynik oznaczający błąd. Nie ograniczamy zestawu testów do ścieżki pomyślnej i nie wymyślamy zachowań błędnych, których aplikacja nie definiuje.
+
+## Promocje — weryfikacja 31.10.2026
+
+`Unit/PromotionCalculatorTests.cs` obejmuje rabaty procentowe/kwotowe, zero, grosze, limity, okres przed oknem, przerwy w ofercie, krótką/nieznaną historię i DST Warszawy. `Unit/PromotionEndpointTests.cs` sprawdza dostęp dla wszystkich siedmiu tras przed IO, nagłówki zapisu i odrzucanie pól serwerowych.
+
+`Integration/PromotionPostgresTests.cs` używa tej samej izolowanej bazy `ECOMMERCE_TEST_DATABASE` (`localhost`, nazwa `ecomm_test_*`). Obejmuje pełny cykl, wszystkie publiczne ścieżki odczytu i zachowanie zapisanego odniesienia po 31 dniach, równoczesne starty, start kontra zwykła cena, wersje, ponowienia, brak zmiany składu po późniejszej publikacji, zakończenie po ukryciu, indeks aktywnego udziału, niezmienność odniesienia, reset oraz triggery widoczności/cenę przyszłą. Tymczasowy trigger wywołujący błąd przy kolejnym zapisie ceny potwierdza rollback po faktycznym błędzie bazy, nie tylko po walidacji.
+
+Wykonano `dotnet build E-commerce-backend.slnx --configuration Release` i pełne `dotnet test E-commerce-backend.slnx --configuration Release` z lokalnym PostgreSQL: **116 testów zaliczonych, 0 pominiętych**. Tryb Release pozwala uniknąć nadpisywania plików używanych przez uruchomione developerskie API Debug. `dotnet ef migrations has-pending-model-changes --configuration Release --no-build` nie wskazuje różnic.
+
+Migrację promocji sprawdzono także na 43 467 cenach (niezmieniona liczba i kontrolny skrót) oraz zastosowano w Supabase. Pomiar 5000 produktów jest w [audycie](catalog-performance-audit.md#promocje-produktu--31102026). Nie przeprowadzono pełnego testu promocji z dwoma rzeczywistymi kontami Supabase; lokalne testy kontroli dostępu używają atrapy istniejącego mechanizmu sesji.
+
+## Odbiór promocji przez HTTPS — 01.11.2026
+
+Wykonano pełny przebieg przez rzeczywisty pipeline ASP.NET Core, HTTPS i cookie `__Host-ecomm-auth`, bez atrapy Auth. Dwa nowe konta (administrator i klient) utworzono przez Supabase Admin API z potwierdzonym e-mailem, bez wysyłania wiadomości. Logowanie i potwierdzanie sesji korzystało z rzeczywistego Supabase Auth. Katalog, lokalna kopia ID użytkowników i uprawnienie administratora istniały wyłącznie w izolowanej bazie PostgreSQL `ecomm_test_promotion_http`. Nie zmieniano katalogu ani uprawnień sklepu w Supabase.
+
+Wynik: **23/23 sprawdzenia HTTP zaliczone**. Powtórzony build: 0 błędów/ostrzeżeń; pełny zestaw xUnit na świeżo zmigrowanej lokalnej bazie: **116 zaliczonych, 0 pominiętych**. Sprawdzono:
+
+- Powiązanie uruchomionego API z izolowaną bazą przez losowy znacznik kategorii przed wywołaniem resetującego seedera; HTTP seed ze scenariuszami promocji i licznikami.
+- Logowanie obu rzeczywistych kont, cookie, `/auth/me`, `401` dla anonimowego i `403` dla klienta na wszystkich siedmiu trasach promocji. Klient miał celowo `role=admin` w `user_metadata`, co nie dało uprawnień.
+- Brak nagłówka CSRF (`403`), niepoprawny UUID klucza i serwerowe pole `actorUserId` (`400` przez MVC).
+- Szkic, ponowienie jego utworzenia, stronicowany podgląd z pełną listą wersji, aktywację, konflikt klucza z inną treścią i blokadę zwykłej zmiany ceny.
+- Spójne kwoty i odniesienie w szczegółach, katalogu, kategorii i POST wyszukiwania z ceną.
+- Ponowienie aktywacji i zakończenia bez nowych wierszy, przywrócenie podstawy i `reduction=null`, blokadę reaktywacji zakończonej akcji.
+- Następną promocję kwotową: cenę po rabacie i odniesienie uwzględniające poprzednią obniżkę. Dwa pełne cykle pozostawiły dokładnie cztery nowe wpisy historii per wariant.
+- Odebranie administratora z zachowaniem tej samej sesji, a następnie `403`.
+
+Po każdym przebiegu wylogowano tymczasowe konta, usunięto je przez Admin API i zweryfikowano `404` przy ponownym odczycie. Test nie używa istniejących haseł użytkowników, nie wysyła e-maili i nie nadaje administratora w bazie sklepu. Testowy serwer API i lokalny PostgreSQL zatrzymano po pracy.
+
+W pierwszym uruchomieniu helpera PowerShell nowy klucz `sb_secret` został odrzucony z `401`, ponieważ domyślny User-Agent wyglądał jak przeglądarka. Helper serwerowy jawnie deklaruje `ecomm-smoke-server/1.0`; kod API nie wymagał zmiany. To zachowanie opisuje [dokumentacja kluczy Supabase](https://supabase.com/docs/guides/getting-started/api-keys#secret-keys-and-elevated-access). W asercji drugiego rabatu poprawiono wybór wariantu po UUID: kolejność podglądu jest według UUID, a szczegółów według SKU. Nie wykryto błędu aplikacyjnej logiki promocji.
+
+### Odtworzenie testu
+
+Skrypt [tests/smoke/promotions.ps1](../tests/smoke/promotions.ps1) wymaga PowerShell 7, lokalnego `psql`, świeżej bazy `ecomm_test_*` z migracjami, developerskiego certyfikatu HTTPS oraz istniejącej konfiguracji Supabase w lokalnych user-secrets. Tworzy i usuwa tymczasowe konta w skonfigurowanym projekcie Supabase. Używa tajnego klucza tylko w pamięci po stronie narzędzia developerskiego, bez zapisywania go w raporcie.
+
+Uruchom osobną instancję API ze zmiennymi `ASPNETCORE_ENVIRONMENT=Development`, `ConnectionStrings__SupabaseDatabase` wskazującym wyłącznie lokalną bazę testową, `DemoSeed__Enabled=true`, tymczasowym `DemoSeed__Key` i adresem `https://localhost:15476`. Przykładowo dla bazy PostgreSQL na porcie 15474 (wcześniej bootstrap i migracje według instrukcji na początku pliku):
+
+```powershell
+$qaSeedKey = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+$env:ASPNETCORE_ENVIRONMENT = 'Development'
+$env:ConnectionStrings__SupabaseDatabase = 'Host=127.0.0.1;Port=15474;Database=ecomm_test_promotion_http;Username=postgres'
+$env:DemoSeed__Enabled = 'true'
+$env:DemoSeed__Key = $qaSeedKey
+$env:ECOMMERCE_SMOKE_SEED_KEY = $qaSeedKey
+```
+
+Z tym samym środowiskiem uruchom `dotnet run --configuration Release --no-launch-profile --urls https://localhost:15476`, a w drugiej konsoli ustaw identyczny `ECOMMERCE_SMOKE_SEED_KEY` i wykonaj:
+
+```powershell
+./tests/smoke/promotions.ps1 -Api 'https://localhost:15476/api/v1/web' -Database ecomm_test_promotion_http -PgPort 15474
+```
+
+Skrypt nie przyjmuje zdalnego adresu API ani nazwy bazy spoza `ecomm_test_*`. Przed resetem sprawdza odczyt losowego lokalnego rekordu przez API. Pomija sprawdzanie łańcucha certyfikatu wyłącznie dla wskazanego lokalnego HTTPS; żądania do Supabase używają normalnej walidacji TLS. `finally` sprząta konta także po nieudanej asercji, a błąd sprzątania podaje UUID wymagające weryfikacji.
+
+Granica dowodu: sprawdzono rzeczywisty Auth i transport HTTP wraz z lokalnym PostgreSQL, nie pełne połączenie katalogowe do zdalnej bazy Supabase, środowisko produkcyjne ani przeglądarkowy frontend. Nadal nie jest to test wszystkich ustawień CORS/SameSite przyszłego frontendu.

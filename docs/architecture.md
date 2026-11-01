@@ -36,3 +36,9 @@ Po zmianie kodu endpointu trzeba przebudować i ponownie uruchomić aplikację, 
 - Logowanie przez Google, a ewentualnie później Apple, jest planem. W kodzie działa obecnie logowanie e-mail/hasło. Szczegóły późniejszego wdrożenia opisuje [auth-implementation-plan.md](auth-implementation-plan.md).
 - Repozytorium nie zawiera frontendu. Konfiguracja CORS, `SameSite` i ochrony CSRF wymaga ponownej oceny, gdy będzie znany sposób hostowania frontendu względem API.
 - Integracja profilu z prawdziwymi kontami i weryfikacja dostępu między dwoma użytkownikami pozostają do sprawdzenia; testy lokalne używają atrap. Stan weryfikacji jest w [user-profiles.md](user-profiles.md) i [testing.md](testing.md).
+
+## Serwisy promocji — 31.10.2026
+
+`AdminPromotionsController` używa istniejącego `IAdministratorAccess`, a po jego sprawdzeniu wywołuje scoped `PromotionService`. Kalkulatory `PromotionCalculator` i `PriorPriceCalculator` nie wykonują IO. Oferta jest rejestrowana triggerami PostgreSQL, ponieważ katalog nie ma jeszcze endpointów tworzenia/edycji. Wspólna blokada zapisu katalogu poprzedza blokady zwykłej ceny i jest również stosowana przez seeder; szczegóły i koszt serializacji opisuje [plan promocji](promotion-implementation-plan.md).
+
+`PublicPriceBuilder` buduje wspólne pola ceny z zapisanego zdarzenia obniżki. Szczegóły produktu i kafelek używają tych samych reguł; kafelek wybiera cenę jednego pasującego wariantu per waluta. `ProductsController` nadal filtruje i sortuje po obowiązującym `selling_amount`. Dane administratora nie trafiają do publicznego DTO. Migracja promocji jest zastosowana w Supabase; operacje zapisu produktów i kategorii nadal są osobną pracą.

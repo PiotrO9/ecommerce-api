@@ -27,4 +27,8 @@ public sealed record ProductVariantResponse(
 
 public sealed record ProductVariantAttributeResponse(string Code, string DisplayName, string Value);
 
-public sealed record ProductVariantPriceResponse(decimal Amount, string Currency);
+public sealed record ProductVariantPriceResponse(decimal Amount, string Currency,
+    decimal? BaseAmount = null, PublicPriceReduction? Reduction = null, Guid? VariantId = null);
+
+public sealed record PublicPriceReduction(decimal PriorAmount, DateTime ReferenceStart,
+    DateTime StartedAt, string Basis, decimal SavingPercent);

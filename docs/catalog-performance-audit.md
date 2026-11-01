@@ -109,3 +109,30 @@ Na tej samej lokalnej bazie 5000 produktów uruchomiono GET katalogu z frazą pe
 | Domyślne po trafności, seria 2 | 114,6 ms | 116,5 ms |
 
 Ranking zwiększył czas tego szerokiego zapytania około dwukrotnie, ale p95 pozostało blisko 120 ms w tej lokalnej próbie. To pomiar na ciepłej bazie, bez ruchu równoległego. Przy większym katalogu lub innym rozkładzie zapytań należy zmierzyć ponownie przed doborem indeksów.
+## Promocje produktu — 31.10.2026
+
+Na dotychczasowej izolowanej lokalnej bazie 5000 produktów zastosowano nową migrację. Przed i po: 43 467 cen, identyczne MD5 ID/kwot/dat. Późniejszy harness dopisał 50 wariantów do istniejącej `demo-czapka`, bez nowych produktów; akcja objęła **56 wariantów**. Historia oferty do pomiaru była jawnie syntetyczna (`source=demo`). Nie wykonywano resetu ani testowych zmian cen w Supabase.
+
+Pomiar serwisu przez EF Core na PostgreSQL 17, 3 pełne cykle rozgrzewające i 10 mierzonych. Każdy kolejny rabat był większy, aby respektować minimum po poprzedniej obniżce. Czasy obejmują transakcję i zapis w bazie, bez HTTP i Supabase Auth. Licznik obejmuje komendy aplikacji; nie liczy wewnętrznych poleceń wykonywanych przez triggery i samego BEGIN/COMMIT.
+
+| Operacja, 56 wariantów | p50 | p95 | Komendy SQL |
+| --- | ---: | ---: | ---: |
+| Podgląd (strona 20, kontrola pełnego zakresu) | 6,9 ms | 8,5 ms | 7 |
+| Aktywacja | 36,0 ms | 49,1 ms | 12 |
+| Zakończenie | 21,3 ms | 28,9 ms | 10 |
+
+Po pomiarze uruchomiono aktywną promocję tego produktu i lokalne HTTP API bez logowania SQL. GET z ceną 100–300 PLN i `price-asc`, 5 rozgrzewek i 40 mierzonych żądań: **p50 77,2 ms, p95 79,6 ms**. Klient obciążeniowy wykonał po 3 rozgrzewki i 50 żądań na scenariusz, maksymalnie 5 równocześnie:
+
+| Scenariusz HTTP | p50 | p95 | Błędy / żądania |
+| --- | ---: | ---: | ---: |
+| Strona katalogu | 41,6 ms | 117,7 ms | 0 / 50 |
+| Puste wyszukiwanie | 137,0 ms | 164,3 ms | 0 / 50 |
+| Sortowanie i filtr ceny | 80,9 ms | 92,1 ms | 0 / 50 |
+| Dwie cechy + cena + sortowanie | 216,9 ms | 243,0 ms | 0 / 50 |
+| Pięć cech | 152,2 ms | 169,3 ms | 0 / 50 |
+
+Diagnostyka przez interceptor EF potwierdziła 4 komendy dla katalogu z ceną i 6 dla wyszukiwania z dwiema cechami/ceną; dodanie odniesienia nie tworzy zapytania per wariant. Cała historia pobierana do kalkulatora obejmuje wyłącznie warianty jednego produktu. Aktywacja i zakończenie nie wykonują osobnego zapytania historii/odniesienia dla każdego wariantu.
+
+Wyniki są wystarczające do dalszego lokalnego rozwoju tej wersji. To nie prognoza Supabase ani test wielu jednoczesnych administratorów; 10 cykli zapisu to mała próba, p95 odpowiada największej zmierzonej wartości. Wspólna blokada serializuje zapisy katalogu, więc większy ruch administracyjny wymaga pomiaru oczekiwania na blokadę. Nie wykonano nowego porównania A–B–A, więc tej serii nie należy traktować jako dowodu poprawy względem poprzednich pomiarów.
+
+Odtworzenie: [harness promocji](../tests/performance/README.md#pomiar-promocji).

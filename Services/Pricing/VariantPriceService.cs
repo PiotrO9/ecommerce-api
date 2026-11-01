@@ -21,6 +21,7 @@ public sealed class VariantPriceService(AppDbContext database, TimeProvider time
         }
 
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await CatalogWriteLock.AcquireAsync(database, cancellationToken);
         // Serialize retries even when the same key is accidentally used for different variants.
         var lockKey = $"variant-price:{command.ActorUserId:D}:{command.OperationKey:D}";
         await database.Database.ExecuteSqlInterpolatedAsync(
@@ -66,7 +67,8 @@ public sealed class VariantPriceService(AppDbContext database, TimeProvider time
         {
             return new(PriceChangeStatus.VersionConflict);
         }
-        if (current is not null && current.BaseAmount != current.SellingAmount)
+        if (await database.PromotionVariants.AnyAsync(m => m.VariantId == command.VariantId && m.EndedAt == null, cancellationToken) ||
+            current is not null && current.BaseAmount != current.SellingAmount)
         {
             return new(PriceChangeStatus.DiscountedPriceConflict);
         }

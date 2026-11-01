@@ -1,6 +1,7 @@
 using E_commerce_backend.Data;
 using E_commerce_backend.Entities;
 using Microsoft.EntityFrameworkCore;
+using E_commerce_backend.Services.Pricing;
 
 namespace E_commerce_backend.Services.Development;
 
@@ -13,7 +14,16 @@ public sealed record DemoSeedCreated(
     int ProductCategoryLinks,
     int VariantAttributeLinks,
     int Stocks,
-    int PriceChanges);
+    int PriceChanges,
+    int OfferEvents = 0,
+    int Promotions = 0,
+    int PromotionVariants = 0,
+    int PriceReductions = 0,
+    int PromotionOperations = 0)
+{
+    public int Sum() => Categories + Products + Variants + AttributeKeys + AttributePairs + ProductCategoryLinks
+        + VariantAttributeLinks + Stocks + PriceChanges + OfferEvents + Promotions + PromotionVariants + PriceReductions + PromotionOperations;
+}
 
 public sealed record DemoCatalogSeedResult(int Added, DemoSeedCreated Created);
 
@@ -22,6 +32,7 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
     public async Task<DemoCatalogSeedResult> SeedAsync(DemoSeedOptions options, CancellationToken cancellationToken)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        await CatalogWriteLock.AcquireAsync(database, cancellationToken);
 
         // Serializuje dwa równoczesne wywołania seedera na tej samej bazie.
         await database.Database.ExecuteSqlRawAsync(
@@ -31,6 +42,11 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         // TRUNCATE omija wyzwalacz DELETE historii cen; endpoint działa tylko w Development.
         await database.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE
+                app.price_reductions,
+                app.promotion_variants,
+                app.promotion_operations,
+                app.promotions,
+                app.variant_offer_events,
                 app.variant_price_changes,
                 app.variant_stock,
                 app.variant_attribute_pairs,
@@ -63,15 +79,12 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         await database.Database.ExecuteSqlRawAsync("""
             ANALYZE app.categories, app.products, app.product_categories,
                 app.product_variants, app.attribute_keys, app.attribute_pairs,
-                app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes
+                app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes,
+                app.promotions, app.promotion_variants, app.price_reductions, app.promotion_operations, app.variant_offer_events
             """, cancellationToken);
+        var created = data.Created with { OfferEvents = await database.VariantOfferEvents.CountAsync(cancellationToken) };
         await transaction.CommitAsync(cancellationToken);
-
-        var created = data.Created;
-        var added = created.Categories + created.Products + created.Variants + created.AttributeKeys
-            + created.AttributePairs + created.ProductCategoryLinks + created.VariantAttributeLinks
-            + created.Stocks + created.PriceChanges;
-        return new DemoCatalogSeedResult(added, created);
+        return new DemoCatalogSeedResult(created.Sum(), created);
     }
 }
 
@@ -82,6 +95,7 @@ public sealed class DemoCatalogSeedData
     private readonly List<object> _entities = [];
     private readonly List<Product> _products = [];
     private readonly List<ProductVariant> _variants = [];
+    private readonly Dictionary<Guid, VariantPriceChange> _lastPrices = [];
 
     private DemoCatalogSeedData(DateTime createdAt) => CreatedAt = createdAt;
 
@@ -99,7 +113,12 @@ public sealed class DemoCatalogSeedData
         _entities.OfType<ProductCategory>().Count(),
         _entities.OfType<VariantAttributePair>().Count(),
         _entities.OfType<VariantStock>().Count(),
-        _entities.OfType<VariantPriceChange>().Count());
+        _entities.OfType<VariantPriceChange>().Count(),
+        _entities.OfType<VariantOfferEvent>().Count(),
+        _entities.OfType<Promotion>().Count(),
+        _entities.OfType<PromotionVariant>().Count(),
+        _entities.OfType<PriceReduction>().Count(),
+        _entities.OfType<PromotionOperation>().Count());
 
     public static DemoCatalogSeedData Create(DemoSeedOptions options, DateTime createdAt)
     {
@@ -216,6 +235,7 @@ public sealed class DemoCatalogSeedData
             }
         }
 
+        data.AddPromotionScenarios(createdAt);
         return data;
     }
 
@@ -237,8 +257,9 @@ public sealed class DemoCatalogSeedData
         Add(new VariantStock { VariantId = variantId, QuantityOnHand = quantity });
 
     private void AddPrice(Guid variantId, string reason, decimal baseAmount, decimal sellingAmount,
-        DateTime effectiveAt) =>
-        Add(new VariantPriceChange
+        DateTime effectiveAt)
+    {
+        _lastPrices[variantId] = Add(new VariantPriceChange
         {
             VariantId = variantId,
             BaseAmount = baseAmount,
@@ -246,4 +267,42 @@ public sealed class DemoCatalogSeedData
             EffectiveAt = effectiveAt,
             Reason = reason
         });
+    }
+
+    private void AddPromotionScenarios(DateTime now)
+    {
+        var variantsByProduct = _variants.ToLookup(v => v.ProductId);
+        foreach (var (product, index) in _products.Select((product, index) => (product, index + 1)))
+        {
+            var variants = variantsByProduct[product.Id].ToArray();
+            foreach (var variant in variants)
+                Add(new VariantOfferEvent { VariantId = variant.Id, OccurredAt = now.AddDays(index == 6 ? -2 : index == 7 ? -5 : -40),
+                    Visible = true, CompleteFromBirth = index != 7, Source = "demo" });
+            if (index is not (3 or 4 or 5)) continue;
+            var ended = index == 5;
+            var start = now.AddDays(-4); var end = now.AddDays(-2);
+            var promotion = Add(new Promotion { ProductId = product.Id, Name = $"Demo: promocja {index}",
+                DiscountType = index == 3 ? "percentage" : "amount", DiscountValue = index == 3 ? 20 : 5,
+                Status = ended ? "Ended" : "Active", Version = ended ? 3 : 2, CreatedAt = now.AddDays(-6),
+                UpdatedAt = ended ? end : start, ActivatedAt = start, EndedAt = ended ? end : null });
+            var operation = Add(new PromotionOperation { PromotionId = promotion.Id, Kind = "demo", RequestHash = "demo", ResponseJson = "{}", StatusCode = 200, CreatedAt = start });
+            var ending = ended ? Add(new PromotionOperation { PromotionId = promotion.Id, Kind = "demo", RequestHash = "demo", ResponseJson = "{}", StatusCode = 200, CreatedAt = end }) : null;
+            foreach (var variant in variants)
+            {
+                var previous = _lastPrices[variant.Id];
+                var member = Add(new PromotionVariant { PromotionId = promotion.Id, VariantId = variant.Id, StartedAt = start, EndedAt = ended ? end : null });
+                var reduction = Add(new PriceReduction { PromotionVariantId = member.Id, VariantId = variant.Id,
+                    PriorAmount = previous.SellingAmount, ReferenceStart = now.AddDays(-10), StartedAt = start, Basis = "SinceFirstOffer" });
+                var price = Add(new VariantPriceChange { VariantId = variant.Id, BaseAmount = previous.BaseAmount,
+                    SellingAmount = PromotionCalculator.Calculate(previous.BaseAmount, promotion.DiscountType, promotion.DiscountValue)!.Value,
+                    EffectiveAt = start, CreatedAt = start, Reason = "Demo: start promocji", PreviousPriceChangeId = previous.Id,
+                    PromotionOperationId = operation.Id, PriceReductionId = reduction.Id });
+                _lastPrices[variant.Id] = price;
+                if (ending is not null)
+                    _lastPrices[variant.Id] = Add(new VariantPriceChange { VariantId = variant.Id, BaseAmount = previous.BaseAmount,
+                        SellingAmount = previous.BaseAmount, EffectiveAt = end, CreatedAt = end, Reason = "Demo: koniec promocji",
+                        PreviousPriceChangeId = price.Id, PromotionOperationId = ending.Id });
+            }
+        }
+    }
 }

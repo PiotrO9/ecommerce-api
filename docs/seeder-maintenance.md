@@ -4,7 +4,7 @@ Cel: zapewnić, że rozwój modelu danych aplikacji jest uwzględniany w ręczni
 
 ## Stan obecny
 
-`DemoCatalogSeeder` tworzy przykładowy katalog w tabelach kategorii, produktów, wariantów, cech, przypisań, stanów i historii cen. Endpoint jest dostępny tylko w środowisku developerskim po włączeniu flagi i podaniu klucza. Każde wywołanie najpierw czyści dziewięć tabel katalogowych, także z danymi spoza seedera, a następnie tworzy nowy zestaw w tej samej transakcji. Tabele kont, profili i uwierzytelniania pozostają nietknięte. Pełny zakres i ograniczenia opisuje [demo-seed.md](demo-seed.md).
+`DemoCatalogSeeder` tworzy przykładowy katalog w tabelach kategorii, produktów, wariantów, cech, przypisań, stanów i historii cen. Endpoint jest dostępny tylko w środowisku developerskim po włączeniu flagi i podaniu klucza. Każde wywołanie najpierw czyści czternaście tabel katalogowych, wraz z promocjami i historią oferty, także z danymi spoza seedera, a następnie tworzy nowy zestaw w tej samej transakcji. Tabele kont, profili i uwierzytelniania pozostają nietknięte. Pełny zakres i ograniczenia opisuje [demo-seed.md](demo-seed.md).
 
 ## Zasada przy kolejnych zmianach
 
