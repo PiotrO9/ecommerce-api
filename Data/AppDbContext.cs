@@ -5,6 +5,10 @@ namespace E_commerce_backend.Data;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<ShoppingState> ShoppingStates => Set<ShoppingState>();
+    public DbSet<CartItem> CartItems => Set<CartItem>();
+    public DbSet<FavoriteList> FavoriteLists => Set<FavoriteList>();
+    public DbSet<FavoriteItem> FavoriteItems => Set<FavoriteItem>();
     public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
     public DbSet<Administrator> Administrators => Set<Administrator>();
     public DbSet<Promotion> Promotions => Set<Promotion>();
@@ -64,5 +68,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         CatalogModelConfiguration.Configure(modelBuilder);
         PromotionModelConfiguration.Configure(modelBuilder);
         CollectionModelConfiguration.Configure(modelBuilder);
+        ShoppingModelConfiguration.Configure(modelBuilder);
     }
 }

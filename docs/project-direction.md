@@ -13,9 +13,9 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 ## Stan na dziś
 
-Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
+Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują reset hasła oraz zapisy koszyka, ulubionych i inicjalizację gościa.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma koszyka, zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -40,9 +40,9 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | Gotowe w kodzie dla PLN: zwykłe ceny, start/koniec promocji i niezmienna historia; migracje w Supabase |
 | **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | W toku: promocje produktu i kolekcji wdrożone; zakres całego katalogu pozostaje do wdrożenia |
 | **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Gotowe w kodzie dla zwykłych towarów oraz promocji produktu i kolekcji; znana krótka oferta i blokada niepełnej historii |
-| **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | Nie rozpoczęto |
-| **4.2 Koszyk konta i przejęcie** | Koszyk gościa trafia na właściwe konto po uwierzytelnieniu | Nie rozpoczęto |
-| **4.3 Ulubione** | Gość i klient mogą zapisać produkty zgodnie z ustaloną zasadą przejęcia | Nie rozpoczęto |
+| **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | W toku: backend i lokalne testy gotowe; brak odbioru frontendu i migracji Supabase |
+| **4.2 Koszyk konta** | Klient widzi wyłącznie koszyk konta; koszyk gościa pozostaje osobno, bez scalania | W toku: backend, prawdziwy Auth i dwie sesje sprawdzone w odbiorze 54/54 HTTPS; pozostają frontend i migracja zdalnej bazy |
+| **4.3 Ulubione** | Wyłącznie zalogowany klient zapisuje konkretne warianty bez duplikatów | W toku: backend i testy gotowe; brak odbioru frontendu i migracji Supabase |
 | **4.4 Logowanie Google** | Konto Google prowadzi do właściwego profilu i zasobów klienta | Nie rozpoczęto |
 | **5.1 Zamówienie i checkout** | Zalogowany klient zapisuje zamówienie z ceną i wariantem z chwili zakupu | Nie rozpoczęto |
 | **5.2 Kontrola magazynu** | Równoległe zakupy i nieudana płatność nie psują stanu | W toku: model stanu wariantu; brak rezerwacji i kontroli zakupów |
@@ -54,7 +54,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **7.2 Zarządzanie sklepem** | Panel obsługuje ofertę, ceny, stany i zamówienia | Nie rozpoczęto |
 | **7.3 Pliki produktów** | Zdjęcia są obsługiwane przez Supabase Storage z właściwym dostępem | Nie rozpoczęto |
 | **8.1 Zdrowie, logi i błędy** | Działa `/healthz`, logi JSON i raportowanie do GlitchTip | Nie rozpoczęto |
-| **8.2 Limity żądań** | Uzgodnione operacje mają limity i czytelne odpowiedzi dla frontendu | W toku: reset hasła |
+| **8.2 Limity żądań** | Uzgodnione operacje mają limity i czytelne odpowiedzi dla frontendu | W toku: reset hasła oraz zapisy koszyka, ulubionych i inicjalizacja gościa |
 | **8.3 Cache Redis** | Wybrane odczyty korzystają z cache i są poprawnie unieważniane | Nie rozpoczęto |
 | **8.4 Czyszczenie danych** | Zadanie cykliczne usuwa tylko dane z zatwierdzoną retencją | Nie rozpoczęto |
 | **9.1 Testy pełnych ścieżek** | Przechodzą testy backendu i uzgodnione scenariusze E2E | Nie rozpoczęto |
@@ -62,7 +62,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 
 Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 → 7.1 → 3.1 → 2.5 → 2.6 → 2.7**. Wstępne ustalenie pól produktu w **2.1** jest zakończone; implementacja pozostaje w **2.2**. Numery 7.1 i 3.1 pojawiają się przed administracyjnym zapisem oferty, bo potrzebne są uprawnienia administratora i historia cen. Próbę **0.4** wykonajcie po ustaleniu środowiska z **1.3**. Etapy **8.1** i potrzebną część **8.2** warto włączyć przed wspólnym środowiskiem testowym. Pozostałe zależności i szczegółowe prace opisują moduły niżej.
 
-**Długofalowa ścieżka:** przetestować pozostałe ograniczenia katalogu na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie PLN oraz promocje jednego produktu są wdrożone; granice weryfikacji opisują [model cen](pricing-model.md) i [plan promocji](promotion-implementation-plan.md). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Pozostają m.in. promocje całego katalogu (3.2), koszyk (4.1–4.2), zamówienie z pozycjami (5.1) oraz dane dostawy i płatności (6).
+**Długofalowa ścieżka:** przetestować pozostałe ograniczenia katalogu na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie PLN oraz promocje jednego produktu są wdrożone; granice weryfikacji opisują [model cen](pricing-model.md) i [plan promocji](promotion-implementation-plan.md). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Pozostają m.in. promocje całego katalogu (3.2), odbiór koszyka z frontendem (4.1–4.2), zamówienie z pozycjami (5.1) oraz dane dostawy i płatności (6).
 
 ### Kolejne ulepszenia odczytu katalogu
 
@@ -181,14 +181,18 @@ Rozszerzenie 3.2 wdrożono według [planu kolekcji i promocji kolekcji](collecti
 
 ## 4. Konto, koszyk i ulubione
 
-- [ ] Wybrać sposób identyfikacji i przechowywania koszyka oraz ulubionych gościa, bez przypisywania ich do przypadkowego konta.
-- [ ] Dodać operacje koszyka i ulubionych dla gościa oraz zalogowanego użytkownika.
-- [ ] Ustalić moment przejęcia koszyka po rejestracji/logowaniu i reguły scalania duplikatów. Obecna rejestracja nie wystawia sesji, więc samo jej zakończenie nie potwierdza tożsamości dla API.
-- [ ] Przy każdym odczycie i zapisie zasobów konta używać zweryfikowanego ID użytkownika; sprawdzić brak dostępu do danych innej osoby.
-- [ ] Obsłużyć zmianę ceny, wycofany wariant, brak stanu, dwa urządzenia i ponowienie żądania.
+Stan 01.11.2026: [backend koszyka i ulubionych](cart-favorites-implementation-plan.md), etapy KU1–KU4, jest wdrożony. Oprócz testów xUnit przeszedł 54/54 sprawdzenia przez rzeczywiste HTTPS i Supabase Auth, z dwoma tymczasowymi kontami oraz niezależnymi sesjami. Działa osobny koszyk gościa i konta, bez scalania, oraz ulubione wariantu wyłącznie na koncie. Katalog próby i migracje były wyłącznie lokalne; nie zastosowano migracji w Supabase. Konta testowe usunięto i zweryfikowano ich brak. KU0/KU5 pozostają częściowe: domeny, frontend i odbiór zdalnej bazy po migracji. Logowanie Google (4.4) pozostaje osobnym zakresem.
+
+- [x] Wdrożyć przechowywanie koszyka gościa i danych konta w PostgreSQL oraz identyfikację gościa ciasteczkiem. Model i migracja sprawdzone lokalnie; token nie jest zwracany w JSON.
+- [x] Dodać koszyk gościa i konta oraz ulubione wyłącznie zalogowanego użytkownika. Ulubione wskazują konkretny wariant, bez duplikatów tego samego wariantu (decyzja użytkownika 01.11.2026).
+- [x] Wdrożyć rozdzielenie koszyków: po logowaniu wyłącznie koszyk konta, po wylogowaniu wcześniejszy niewygasły koszyk gościa, bez przenoszenia pozycji. Przepływ sprawdzony przez HTTPS z rzeczywistym Auth; rejestracja nadal nie wystawia sesji.
+- [x] Przy każdym odczycie i zapisie używać zweryfikowanego ID konta; izolację A/B i brak fallbacku na gościa przy błędzie Auth sprawdzają testy lokalne.
+- [x] Obsłużyć bieżącą zmianę ceny, wycofaną ofertę, brak stanu, współbieżne zapisy i ponowienia; identyfikator zakresu chroni opóźnione żądania po zmianie konta.
+- [x] Sprawdzić koszyk i ulubione przez HTTPS z rzeczywistym Supabase Auth, dwoma kontami i niezależnymi sesjami: 54/54 sprawdzenia; katalog lokalny, konta testowe usunięte i brak zweryfikowany.
+- [ ] Zastosować uzgodnioną migrację w Supabase i przeprowadzić odbiór zdalnej bazy oraz frontendu na dwóch urządzeniach. Brakuje jeszcze ekranów/integracji koszyka i ulubionych we frontendzie; testy HTTP nie zamykają odbioru UI.
 - [ ] Dodać logowanie Google przez Supabase Auth po ustaleniu przekierowań i zasad łączenia tożsamości; sprawdzić, czy prowadzi do tego samego profilu i koszyka.
 
-**Warunek zakończenia:** gość może zapamiętać wybór, a po uwierzytelnieniu widzi go na swoim koncie; cudze dane pozostają niedostępne.
+**Warunek zakończenia:** gość korzysta z koszyka, a zalogowany klient z własnego koszyka i ulubionych wariantów; przełączanie koszyka po logowaniu działa według uzgodnionej reguły, a cudze dane pozostają niedostępne.
 
 ## 5. Checkout, zamówienia i magazyn
 
@@ -252,7 +256,6 @@ Rozszerzenie 3.2 wdrożono według [planu kolekcji i promocji kolekcji](collecti
 | Docelowy układ repozytoriów, framework frontendu i adresy środowisk | 1; zasady cookies przed 4 | Otwarta |
 | Format kwot/waluta oraz zasady wariantów i kategorii | 2–3 | Otwarta |
 | Kolekcje, nakładanie promocji, zaokrąglanie i interpretacja wymogu Omnibus | 3 | Otwarta |
-| Przechowywanie i scalanie koszyka oraz ulubionych gościa | 4 | Otwarta |
 | Rezerwacja stanu i reakcja na nieudaną płatność | 5–6 | Otwarta |
 | Statusy dostawy, przewoźnik i zakres danych adresowych | 5–6 | Otwarta |
 | SMTP czy Mailtrap API oraz lista wiadomości | 6 | Otwarta |

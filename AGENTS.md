@@ -19,6 +19,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
 - `docs/promotion-implementation-plan.md` opisuje wdrożone promocje produktu, okresy oferowania, wcześniejszą cenę, wynik odbioru i granice pierwszej wersji.
 - `docs/collection-implementation-plan.md` opisuje wdrożone kolekcje i promocje kolekcji, model, endpointy, zgodność dawnych ponowień, etapy K1–K6 i wyniki odbioru.
+- `docs/cart-favorites-implementation-plan.md` opisuje wdrożony backend oddzielnych koszyków gościa i konta bez scalania oraz ulubionych wariantu wyłącznie na koncie, etapy KU0–KU5, testy lokalne i odbiór 54/54 HTTPS z rzeczywistym Auth oraz pozostały odbiór frontendu i migrację Supabase.
 - `docs/administrator-access.md` opisuje uprawnienia administratora, nadanie pierwszego dostępu i administracyjne endpointy cen.
 - `docs/demo-seed.md` opisuje ręcznie uruchamiany, developerski seeder katalogu i jego zabezpieczenia.
 - `docs/seeder-maintenance.md` określa, jak rozbudowywać seeder razem ze zmianami modelu bazy.

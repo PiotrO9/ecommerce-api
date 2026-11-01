@@ -4,7 +4,9 @@ Cel: zapewnić, że rozwój modelu danych aplikacji jest uwzględniany w ręczni
 
 ## Stan obecny
 
-`DemoCatalogSeeder` tworzy przykładowy katalog w tabelach kategorii, produktów, wariantów, cech, przypisań, stanów i historii cen. Endpoint jest dostępny tylko w środowisku developerskim po włączeniu flagi i podaniu klucza. Każde wywołanie najpierw czyści siedemnaście tabel katalogowych, w tym kolekcje, ich przypisania i operacje, wraz z promocjami i historią oferty, także z danymi spoza seedera, a następnie tworzy nowy zestaw w tej samej transakcji. Tabele kont, profili i uwierzytelniania pozostają nietknięte. Pełny zakres i ograniczenia opisuje [demo-seed.md](demo-seed.md).
+`DemoCatalogSeeder` tworzy przykładowy katalog w tabelach kategorii, produktów, wariantów, cech, przypisań, stanów i historii cen. Endpoint jest dostępny tylko w środowisku developerskim po włączeniu flagi i podaniu klucza. Każde wywołanie czyści siedemnaście tabel katalogowych oraz `cart_items` i `favorite_items` (łącznie 19), także z danymi spoza seedera, a następnie tworzy nowy katalog w tej samej transakcji. Stany koszyków i listy ulubionych pozostają, a ich wersje są zwiększane, jeśli reset usuwa pozycje. Konta, profile i uwierzytelnianie pozostają nietknięte. Pełny zakres i ograniczenia opisuje [demo-seed.md](demo-seed.md).
+
+Koszyki i ulubione nie są automatycznie seedowane: należą do konkretnego właściciela, nie do publicznego katalogu. To uzasadniony wyjątek od dodawania nowych danych demo. Scenariusze przygotowują izolowane fixture testowe albo ręczne żądania API po seedzie; nie tworzymy fikcyjnych kont Auth ani nie ujawniamy tokenu gościa. `created` ma 17 liczników typów katalogowych; `added` nie obejmuje usuniętych pozycji. Szczegóły i test resetu konkurującego z zapisem są w [dokumencie koszyka](cart-favorites-implementation-plan.md).
 
 ## Zasada przy kolejnych zmianach
 

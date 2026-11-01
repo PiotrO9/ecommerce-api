@@ -638,16 +638,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             .Select(variant => new { variant.Id, variant.ProductId, variant.SKU, variant.ImageUrls })
             .ToListAsync(cancellationToken);
         var variantIds = variants.Select(variant => variant.Id).ToArray();
-        var prices = await database.VariantPriceChanges.AsNoTracking()
-            .Where(price => variantIds.Contains(price.VariantId) && price.EffectiveAt <= now &&
-                (minPrice == null && maxPrice == null || price.Currency == "PLN") &&
-                price.Id == database.VariantPriceChanges
-                    .Where(candidate => candidate.VariantId == price.VariantId &&
-                        candidate.Currency == price.Currency && candidate.EffectiveAt <= now)
-                    .OrderByDescending(candidate => candidate.EffectiveAt)
-                    .ThenByDescending(candidate => candidate.CreatedAt)
-                    .ThenByDescending(candidate => candidate.Id)
-                    .Select(candidate => candidate.Id).First())
+        var prices = await E_commerce_backend.Services.Pricing.CurrentVariantPrices.Query(database, variantIds, now)
+            .Where(price => minPrice == null && maxPrice == null || price.Currency == "PLN")
             .Select(price => new { price.VariantId, price.Currency, price.SellingAmount, price.BaseAmount, price.PriceReduction })
             .ToListAsync(cancellationToken);
         var variantsByProduct = variants.GroupBy(variant => variant.ProductId)

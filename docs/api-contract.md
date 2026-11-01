@@ -2,6 +2,48 @@
 
 Cel: opisać zewnętrzne zachowanie endpointów istniejących w kodzie. Źródłem prawdy są `Controllers/`, `Contracts/`, `Services/Auth/` i `Services/Email/`; ten dokument trzeba aktualizować razem ze zmianą odpowiedzi API.
 
+## Koszyk i ulubione — 01.11.2026
+
+Trasy istnieją w kodzie; wymagają migracji `20261101132248_AddShoppingCartsAndFavorites`, sprawdzonej lokalnie i jeszcze niezastosowanej w Supabase. Prefiks: `/api/v1/web`. Gość ma koszyk, konto ma osobny koszyk i ulubione konkretnych wariantów. Logowanie niczego nie przenosi; po wylogowaniu wraca niewygasły koszyk gościa. Nie ma endpointów scalania ani rezerwacji magazynu.
+
+| Metoda i trasa | Żądanie i odpowiedź |
+| --- | --- |
+| `POST /shopping/guest-session` | Bez body; wymaga `X-Requested-With: XMLHttpRequest`. `201` tworzy token gościa w ciasteczku i zwraca `{scopeId,version,expiresAt}`; `200` ponownie używa ważnego tokenu bez przedłużenia. Przy ważnej sesji konta `409 account_session_active`. |
+| `DELETE /shopping/guest-session` | Nagłówek jak wyżej, bez body; `204` unieważnia koszyk wskazany ciasteczkiem gościa i usuwa ciasteczko. Nie zmienia danych konta, także jeśli klient jest zalogowany. |
+| `GET /cart` | `200`: `{scopeId,version,evaluatedAt,currency,items,goodsSubtotal,blockedItems,canCheckout}`. Bez sesji gościa zwraca pusty koszyk z `scopeId=null` bez tworzenia rekordu. Dla konta tworzy pusty stan przy pierwszym odczycie. |
+| `PUT /cart/items/{variantId}` | JSON `{quantity,expectedScopeId,expectedVersion}` i nagłówek zapisu; ustawia ilość 1–99. `200`: `{scopeId,version}`. Ilość `0` nie usuwa pozycji. |
+| `DELETE /cart/items/{variantId}` | `expectedScopeId` i `expectedVersion` w query, nagłówek zapisu; `200` z zakresem i wersją. |
+| `DELETE /cart` | Jak wyżej, usuwa wszystkie pozycje aktywnego koszyka. |
+| `GET /favorites?page=1&pageSize=20` | Wyłącznie konto. `200`: `{scopeId,version,evaluatedAt,items,page,pageSize,totalItems,totalPages}`. `page>=1`, `pageSize` 1–50; kolejność `createdAt DESC, variantId`. |
+| `PUT /favorites/items/{variantId}` | Wyłącznie konto. JSON `{expectedScopeId,expectedVersion}` i nagłówek zapisu; zapisuje wariant raz, `200` z zakresem i wersją. |
+| `DELETE /favorites/items/{variantId}` | Wyłącznie konto. Warunki w query i nagłówek zapisu; `200` z zakresem i wersją. |
+
+Przykład zapisu, gdzie UUID zakresu i wersja pochodzą z ostatniego GET aktywnego koszyka:
+
+```http
+PUT /api/v1/web/cart/items/<variantId>
+Content-Type: application/json
+X-Requested-With: XMLHttpRequest
+
+{"quantity":2,"expectedScopeId":"<scopeId-z-GET>","expectedVersion":0}
+```
+
+UUID w nawiasach są placeholderami do zastąpienia. Po zapisie odczytaj ponownie widok; PUT ustawia ilość docelową, nie dodaje przyrostu. DELETE używa np. `?expectedScopeId=<scopeId>&expectedVersion=1`. Nowy/stary koszyk konta i gościa może mieć tę samą wersję liczbową, ale inny zakres. `expectedScopeId` nie wybiera właściciela: backend ustala go z sesji i dopiero porównuje warunek. Konflikt wymaga nowego odczytu i porównania zamiaru klienta, bez automatycznego przenoszenia żądania na inne konto.
+
+Pozycja koszyka zawiera `{variantId,quantity,availability,variant,lineAmount}`. Dostępny wariant ma nazwę/slug i ID produktu, własne SKU, zdjęcie, cechy, stan, `priceChangeId` i `price` zgodne z katalogiem (w tym `baseAmount`/`reduction`). Kwoty dotyczą PLN. Cena jest bieżącą ceną zapisanego wariantu; nie obliczamy rabatu drugi raz i nie pokazujemy ceny innego wariantu. `lineAmount` może prezentować aktualną kwotę znanej pozycji, ale `goodsSubtotal` sumuje tylko w pełni dostępne pozycje. Nie zawiera dostawy.
+
+`availability`: `available`, `stock_unknown`, `out_of_stock`, `insufficient_stock`, `unavailable`. Ukryta oferta albo brak ceny PLN daje minimalną pozycję z `variant=null`, bez opisów i zdjęć szkicu. Wcześniej dodany niedostępny towar pozostaje i można go usunąć lub zmniejszyć ilość. Nowe dodanie/zwiększenie wymaga opublikowanej, wycenionej oferty i wystarczającego znanego stanu. Koszyk maksymalnie 100 wariantów; pusty koszyk lub dowolna blokada daje `canCheckout=false`. To informacja o bieżącym wyborze, nie rezerwacja ani potwierdzenie finalnej ceny.
+
+Pozycja ulubionych zawiera `{variantId,createdAt,availability,variant}`; wariant ma taki sam format jak w koszyku. Maksymalnie 500 wariantów. Dwa warianty jednego produktu są osobnymi wpisami; brak stanu nie blokuje zapisania publicznego wariantu do ulubionych. Gość dostaje `401` i nie ma listy ani importu. PUT istniejącego wpisu i DELETE nieistniejącego wpisu przy aktualnych warunkach nie zwiększają wersji.
+
+Ciasteczko gościa: `__Host-ecomm-shopping`, token losowy 256-bitowy, `HttpOnly; Secure; SameSite=Lax; Path=/`, termin 30 dni bez przedłużania. Token nie trafia do JSON ani URL; w bazie jest jego SHA-256. Frontend inicjuje gościa przed pierwszym zapisem, jednokrotnie przed równoległymi operacjami/kartami. Nieważne ciasteczko Auth daje `401`, a awaria Auth `503`; bieżące żądanie nie przełącza się na gościa. Po zmianie sesji frontend usuwa poprzedni widok i ignoruje jego spóźnione odpowiedzi. Adresy domen i CORS wymagają uzgodnienia przed odbiorem frontendu.
+
+Wszystkie odpowiedzi modułu, także `400`/`415`/`429`, mają `Cache-Control: no-store`. Błędy biznesowe: `{code,message}`; odrzucenie przez MVC może używać standardowego Problem Details. Nieznane pola JSON (np. `userId`, cena) są odrzucane. Kody: `400` dane/warunki, `401` brak konta/nieważna sesja, `403 csrf_header_required`, `404 variant_unavailable`, `409 shopping_scope_changed`/`shopping_version_conflict`/`guest_session_expired`/brak stanu/limity, `429 shopping_rate_limited`, `503 shopping_unavailable`.
+
+Konfiguracja: `Shopping:WriteRequestsPerMinute` domyślnie 120, `Shopping:GuestSessionsPerHour` domyślnie 10, per IP i proces API, bez kolejki. Limity proxy i docelowe domeny pozostają elementem odbioru środowiska. Szczegóły modelu i odbioru: [koszyk i ulubione](cart-favorites-implementation-plan.md).
+
+Reset developerskiego seedera usuwa również pozycje koszyka i ulubionych, zachowuje właścicieli/listy i zwiększa ich wersje. Nie tworzy danych klientów. Zakres resetu i aktualne liczniki: [demo-seed.md](demo-seed.md).
+
 ## Stan potwierdzony w kodzie
 
 Wszystkie trasy kontrolerów zaczynają się od `/api/v1/web`. Pola JSON mają nazwy w stylu `camelCase`. Żądania `POST` i `PUT` z danymi przyjmują JSON. Błędy walidacji modeli wejściowych obsługuje także `[ApiController]`, więc ich treść może różnić się od komunikatów tworzonych jawnie w kontrolerach.

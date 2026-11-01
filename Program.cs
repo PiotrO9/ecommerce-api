@@ -4,6 +4,7 @@ using E_commerce_backend.Services.Auth;
 using E_commerce_backend.Services.Development;
 using E_commerce_backend.Services.Email;
 using E_commerce_backend.Services.Profile;
+using E_commerce_backend.Services.Shopping;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
@@ -74,6 +75,28 @@ builder.Services.AddHttpClient<IEmailSender, MailtrapEmailSender>(client =>
 builder.Services.AddSingleton(new PasswordResetOptions(resetUri, mailtrapFromEmail, mailtrapFromName));
 builder.Services.AddRateLimiter(options =>
 {
+    options.AddPolicy("shopping-write", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Configuration.GetValue("Shopping:WriteRequestsPerMinute", 120),
+            Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+    options.AddPolicy("shopping-guest-create", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = builder.Configuration.GetValue("Shopping:GuestSessionsPerHour", 10),
+            Window = TimeSpan.FromHours(1), QueueLimit = 0
+        }));
+    options.OnRejected = async (rejection, ct) =>
+    {
+        var path = rejection.HttpContext.Request.Path;
+        if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping"))
+        {
+            rejection.HttpContext.Response.Headers.CacheControl = "no-store";
+            await rejection.HttpContext.Response.WriteAsJsonAsync(
+                new E_commerce_backend.Contracts.Shopping.ShoppingError("shopping_rate_limited", "Spróbuj ponownie później."), ct);
+        }
+    };
     options.AddPolicy("password-reset-request", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -117,6 +140,12 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<E_commerce_backend.Services.Pricing.VariantPriceService>();
 builder.Services.AddScoped<E_commerce_backend.Services.Pricing.PromotionService>();
 builder.Services.AddScoped<E_commerce_backend.Services.Catalog.CollectionService>();
+builder.Services.AddScoped<ShoppingOwnerResolver>();
+builder.Services.AddScoped<ShoppingStore>();
+builder.Services.AddScoped<ShoppingOfferReader>();
+builder.Services.AddScoped<GuestShoppingSessionService>();
+builder.Services.AddScoped<CartService>();
+builder.Services.AddScoped<FavoritesService>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(
@@ -178,6 +207,14 @@ if (app.Environment.IsDevelopment())
     }
 }
 
+// Also covers routing/model-binding rejections (e.g. 415), which never reach a controller.
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping"))
+        context.Response.Headers.CacheControl = "no-store";
+    await next(context);
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.MapControllers();
@@ -185,3 +222,5 @@ app.MapControllers();
 app.MapGet("/", () => new { message = "API działa" });
 
 app.Run();
+
+public partial class Program { }

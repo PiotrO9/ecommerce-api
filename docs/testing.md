@@ -2,6 +2,62 @@
 
 Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 
+## Koszyk — odbiór HTTPS z rzeczywistym Auth (01.11.2026)
+
+Wynik: **54/54 sprawdzenia zaliczone**, przez uruchomioną aplikację ASP.NET Core, lokalne HTTPS i rzeczywisty Supabase Auth, bez atrapy Auth. Dwa tymczasowe konta utworzono przez Admin API z `email_confirm=true`, bez wysyłania wiadomości i bez używania istniejących haseł klientów. Katalog, kopie UUID kont dla FK oraz zmiany ceny, magazynu, widoczności i terminu gościa istniały wyłącznie w izolowanym PostgreSQL `ecomm_test_shopping_live`. Nie stosowano migracji ani nie zmieniano katalogu w zdalnym Supabase.
+
+Sprawdzono: token gościa i flagi cookie, brak rezerwacji, ilości/limity, CSRF i niedozwolone pola JSON, brak przedłużania terminu gościa, logowanie prawdziwych kont A/B, izolację od gościa i między kontami, ulubione dokładnego wariantu i deduplikację, paginację, dwie niezależne sesje jednego konta, konflikt wersji między sesjami, lokalne wylogowanie bez unieważnienia drugiej sesji, powrót gościa i ponowne logowanie bez scalania. Dalej: bieżącą zmianę ceny, brak towaru i sumę dostępnych pozycji, zapis niedostępnego wariantu do ulubionych, ukrycie i redakcję danych, zmniejszanie/usuwanie pozycji niedostępnych, czyszczenie koszyka, wymuszone w lokalnym fixture wygaśnięcie gościa, nową sesję i jej unieważnienie oraz brak endpointu importu.
+
+Po przebiegu wylogowano wszystkie sesje, usunięto obydwa konta z Supabase Auth i zweryfikowano `404` przy ich odczycie; usunięto też lokalne referencje kont. API i tymczasowy PostgreSQL zostały zatrzymane. Build przed odbiorem: 0 błędów/ostrzeżeń. Raport bez haseł, tokenów i kluczy: `.local/test-results/shopping-live-20261101-150334-202554ff/report.json`.
+
+Odtworzenie całej próby:
+
+```powershell
+./tests/smoke/run-shopping-local.ps1
+```
+
+Wymagane: PostgreSQL 17 w domyślnej lokalizacji Windows (albo parametr `-PgBin`), SDK .NET, developerski certyfikat HTTPS i komplet konfiguracji startowej API w user-secrets, w tym rzeczywiste klucze Supabase. Launcher wybiera wolne porty, tworzy własny lokalny klaster i bazę ICU, stosuje lokalnie migracje, uruchamia API bez otwierania okna/podglądu i wykonuje [shopping.ps1](../tests/smoke/shopping.ps1). Przy zakończeniu zatrzymuje własne procesy i odtwarza zmienne środowiskowe. **Próba tworzy i usuwa dwa tymczasowe konta w skonfigurowanym projekcie Auth**; nie wysyła e-maili. Tajny klucz pozostaje po stronie procesu narzędzia, nie trafia do raportu ani klienta.
+
+Sam `shopping.ps1` można uruchomić względem przygotowanej instancji:
+
+```powershell
+./tests/smoke/shopping.ps1 -Api 'https://localhost:15476/api/v1/web' `
+  -Database ecomm_test_shopping_http -PgPort 15474 -ReportPath .local/shopping-live.json
+```
+
+Wymaga zgodnego `ECOMMERCE_SMOKE_SEED_KEY`. Przed resetem odczytuje przez API losowy rekord wstawiony do podanej lokalnej bazy. Przyjmuje tylko HTTPS localhost i bazę `ecomm_test_*`. Walidacja certyfikatu jest pomijana wyłącznie dla lokalnego API, a dla Supabase pozostaje standardowa. Konta są sprzątane w `finally`, także po błędzie asercji; ewentualne nieusunięte UUID są wskazane w raporcie i ostrzeżeniu. Helper czyści nagłówki sesji przed każdym żądaniem, zachowując cookies, ponieważ [PowerShell przechowuje przekazane nagłówki w WebSession](https://raw.githubusercontent.com/PowerShell/PowerShell/master/src/Microsoft.PowerShell.Commands.Utility/commands/utility/WebCmdlet/Common/WebRequestPSCmdlet.Common.cs); bez tego próba „bez CSRF” mogłaby nadal wysyłać poprzedni nagłówek.
+
+Granica dowodu: prawdziwe Auth i transport HTTPS z lokalną bazą aplikacji, nie zdalny katalog Supabase ani frontend. Sprawdzony lokalny frontend `D:/CODE/E-comm/Frontend/ecommerce-web-front` ma stronę główną i design system, bez ekranów i integracji koszyka/ulubionych. Nie ma więc jeszcze ścieżki UI do odbioru; domeny, CORS/SameSite przyszłego połączenia i migracja zdalnej bazy pozostają otwarte.
+
+## Koszyk i ulubione — weryfikacja 01.11.2026
+
+Najnowszy odbiór bez atrapy Supabase Auth opisuje [sekcja HTTPS](#koszyk--odbiór-https-z-rzeczywistym-auth-01112026). Poniższe testy xUnit nadal używają atrap zewnętrznych odpowiedzi Auth.
+
+`Integration/ShoppingPostgresTests.cs` i `Integration/ShoppingHttpTests.cs` obejmują łącznie 10 scenariuszy na izolowanej bazie `ecomm_test_*`. Używają kolekcji `Postgres catalog`; nie wolno uruchamiać ich na danych sklepu. Fixture tworzy dwa lokalne UUID w minimalnym `auth.users`, bez profili; nie tworzy kont w Supabase. HTTP korzysta z `WebApplicationFactory<Program>`, rzeczywistego pipeline MVC, cookies i rate limitera oraz atrapy Supabase Auth. Żadne żądanie Auth z tych testów nie trafia do zewnętrznej usługi.
+
+Zakres: osobne koszyki gościa/A/B bez scalania, powrót gościa po logout, ulubione wariantu tylko na koncie, dwa warianty jednego produktu, deduplikacja, brak profilu, usunięcie konta, limity 100/99/500, paginacja, wygasanie/revokacja tokenu gościa, brak przedłużania terminu, brak rezerwacji, bieżące i przyszłe ceny, promocja kolekcji identyczna w katalogu/koszyku/ulubionych, nieznany stan, brak towaru i placeholder ukrytej oferty. Zapisy sprawdzają wersję i zakres, także przy równych numerach wersji dwóch właścicieli. Równoczesne komendy mają jednego zwycięzcę; reset konkurujący z zapisem zachowuje właścicieli i usuwa stare pozycje.
+
+Testy HTTP sprawdzają PUT/DELETE i warunki w query, brak importu, odrzucanie gościa na ulubionych, nieznane pola JSON, `400`/`403`/`415`, `no-store`, nieważny Auth i awarię bez fallbacku do gościa oraz rzeczywisty `429`. To nie jest odbiór przeglądarkowy ani próba prawdziwego Supabase Auth.
+
+Weryfikacja zakresu koszyka na bazie HEAD `f316b7b` z tym wdrożeniem, w osobnym worktree: `dotnet build` — 0 ostrzeżeń i błędów; pełny zestaw **142/142**, bez pominięć. Migrację `AddShoppingCartsAndFavorites` zastosowano od zera oraz cofnięto i ponownie zastosowano, zachowując 4 istniejące rekordy historii cen; brak rozbieżności modelu EF ze snapshotem. Migracja i testy wykonywały zapis tylko lokalnie, nie w Supabase.
+
+Lokalna baza powinna używać kolacji językowej, np. ICU `en-US`. Kolacja `C` powoduje, że istniejący test sortowania nazw (`Zulu` vs `needle`) ma inną kolejność — nie jest to regresja zapytania koszyka. Przykład utworzenia pustej bazy na PostgreSQL z ICU:
+
+```sql
+CREATE DATABASE ecomm_test_catalog TEMPLATE template0 ENCODING 'UTF8'
+    LOCALE_PROVIDER icu ICU_LOCALE 'en-US';
+```
+
+Po bootstrapie `auth` i zastosowaniu migracji:
+
+```powershell
+dotnet test E-commerce-backend.slnx --filter FullyQualifiedName~Shopping
+```
+
+Ustawienie `ECOMMERCE_TEST_DATABASE` i zasady izolacji opisuje następna sekcja. Do zakończenia odbioru pozostają frontend, docelowe domeny i uzgodnione zastosowanie migracji w Supabase; sama kompilacja lub pominięte testy PostgreSQL nie zamykają tych punktów.
+
+Przed commitem wydzielono wyłącznie koszyk i ulubione w osobnym worktree, bez administracji ofertą. Ponowna weryfikacja: build 0 błędów/ostrzeżeń, brak różnic modelu EF i pełne **142/142 testy, 0 pominiętych**, na świeżym lokalnym PostgreSQL 17 z ICU en-US. Raport: `.local/test-results/shopping-commit-20261101-151034/results.trx`. Tymczasowy PostgreSQL zatrzymano po próbie.
+
 ## Integracyjne testy katalogu na PostgreSQL
 
 `AdminPriceEndpointTests` sprawdza odrzucenie braku sesji/uprawnienia/niedostępności Auth przed dostępem do cen, nagłówek CSRF, klucz operacji, dane i paginację oraz odrzucanie pól kontrolowanych przez serwer. `AdminPricePostgresTests` korzysta z prawdziwego PostgreSQL i atrapy Supabase Auth: sprawdza brak zaufania do `user_metadata`, nadanie/odebranie uprawnienia, zachowanie administratora przy resecie katalogu i FK do konta, zmianę ceny z autorem z sesji, ponowienia, konflikty, historię i odczyt produktu po zmianie. Wymaga migracji `AddAdministrators`; należy do kolekcji `Postgres catalog`. Nie zastępuje próby z dwoma prawdziwymi kontami.

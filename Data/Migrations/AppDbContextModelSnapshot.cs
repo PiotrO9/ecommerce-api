@@ -124,6 +124,38 @@ namespace E_commerce_backend.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("E_commerce_backend.Entities.CartItem", b =>
+                {
+                    b.Property<Guid>("ShoppingStateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shopping_state_id");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("variant_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("ShoppingStateId", "VariantId");
+
+                    b.HasIndex("VariantId");
+
+                    b.ToTable("cart_items", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_cart_items_quantity", "quantity BETWEEN 1 AND 99");
+                        });
+                });
+
             modelBuilder.Entity("E_commerce_backend.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -304,6 +336,63 @@ namespace E_commerce_backend.Data.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("collection_products", "app");
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.FavoriteItem", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("VariantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("variant_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.HasKey("UserId", "VariantId");
+
+                    b.HasIndex("VariantId");
+
+                    b.HasIndex("UserId", "CreatedAt", "VariantId");
+
+                    b.ToTable("favorite_items", "app");
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.FavoriteList", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ScopeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scope_id");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("ScopeId")
+                        .IsUnique();
+
+                    b.ToTable("favorite_lists", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_favorite_lists_version", "version >= 0");
+                        });
                 });
 
             modelBuilder.Entity("E_commerce_backend.Entities.PriceReduction", b =>
@@ -675,6 +764,60 @@ namespace E_commerce_backend.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("E_commerce_backend.Entities.ShoppingState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("CartVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("cart_version");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("GuestTokenHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("guest_token_hash");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasFilter("expires_at IS NOT NULL");
+
+                    b.HasIndex("GuestTokenHash")
+                        .IsUnique()
+                        .HasFilter("guest_token_hash IS NOT NULL");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasFilter("user_id IS NOT NULL");
+
+                    b.ToTable("shopping_states", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_shopping_states_owner", "(user_id IS NOT NULL AND guest_token_hash IS NULL AND expires_at IS NULL) OR (user_id IS NULL AND guest_token_hash IS NOT NULL AND guest_token_hash ~ '^[0-9A-F]{64}$' AND expires_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_shopping_states_version", "cart_version >= 0");
+                        });
+                });
+
             modelBuilder.Entity("E_commerce_backend.Entities.UserProfile", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -924,6 +1067,21 @@ namespace E_commerce_backend.Data.Migrations
                     b.Navigation("AttributeKey");
                 });
 
+            modelBuilder.Entity("E_commerce_backend.Entities.CartItem", b =>
+                {
+                    b.HasOne("E_commerce_backend.Entities.ShoppingState", null)
+                        .WithMany()
+                        .HasForeignKey("ShoppingStateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("E_commerce_backend.Entities.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("E_commerce_backend.Entities.Category", b =>
                 {
                     b.HasOne("E_commerce_backend.Entities.Category", "Parent")
@@ -955,6 +1113,30 @@ namespace E_commerce_backend.Data.Migrations
                         .WithMany()
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.FavoriteItem", b =>
+                {
+                    b.HasOne("E_commerce_backend.Entities.FavoriteList", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("E_commerce_backend.Entities.ProductVariant", null)
+                        .WithMany()
+                        .HasForeignKey("VariantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.FavoriteList", b =>
+                {
+                    b.HasOne("E_commerce_backend.Data.AuthUserReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
@@ -1038,6 +1220,14 @@ namespace E_commerce_backend.Data.Migrations
                         .HasForeignKey("VariantId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("E_commerce_backend.Entities.ShoppingState", b =>
+                {
+                    b.HasOne("E_commerce_backend.Data.AuthUserReference", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade);
                 });
 
             modelBuilder.Entity("E_commerce_backend.Entities.UserProfile", b =>

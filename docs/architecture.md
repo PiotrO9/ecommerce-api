@@ -2,6 +2,16 @@
 
 Cel: dać osobie i asystentowi AI krótki punkt wejścia do obecnego kodu, jego granic i przepływu żądań. Szczegóły endpointów są w [api-contract.md](api-contract.md), a danych i migracji w [database.md](database.md).
 
+## Koszyk i ulubione — 01.11.2026
+
+Backend ma osobne koszyki gościa i konta oraz ulubione wariantów wyłącznie na koncie. Logowanie nie przenosi pozycji, logout zachowuje ciasteczko gościa. `ShoppingOwnerResolver` używa istniejącego `AuthenticatedUserService`; obecność nieważnego ciasteczka Auth daje `401`, niedostępność usługi `503`, bez przełączenia zapisu na gościa. `GuestShoppingCookie` przechowuje losowy token 256-bitowy w `__Host-ecomm-shopping`; baza przechowuje tylko SHA-256. Termin 30 dni jest sprawdzany po stronie backendu i nie jest przedłużany.
+
+`ShoppingStore` rozwiązuje prywatny stan koszyka/listy. `CartService` i `FavoritesService` przy zapisie porównują `expectedScopeId` i `expectedVersion`, blokują wiersz właściciela i stosują limity 100 wariantów/99 sztuk/500 ulubionych. Triggery pozycji zwiększają wersję również po SQL i kaskadowym usunięciu wariantu. Ulubione mają własną tabelę list konta; nie wymagają uzupełnionego profilu.
+
+`ShoppingOfferReader` ładuje wybrane warianty i ich bieżące ceny zbiorczo. `CurrentVariantPrices.Query` jest wspólne z listami katalogu, a `PublicPriceBuilder` zachowuje te same dane promocji i wcześniejszej ceny. GET-y używają `RepeatableRead` i jednego czasu oceny; nie zamrażają ceny i nie rezerwują magazynu. Ukryta oferta ma minimalny placeholder bez opisu/zdjęć. Suma koszyka obejmuje tylko dostępne pozycje i nie zawiera dostawy.
+
+Nowe kontrolery mają ochronę zapisów przez `X-Requested-With`, JSON z odrzucaniem nieznanych pól i limity żądań. Middleware ustawia `no-store` także dla błędów walidacji/routingu. Blokada współdzielona `(20261101,4)` pozwala pracować wielu właścicielom jednocześnie; reset seedera pobiera jej postać wyłączną po blokadzie katalogu, podnosi wersje i czyści pozycje. Migracja czterech tabel została zastosowana wyłącznie lokalnie. Odbiór HTTPS z rzeczywistym Supabase Auth przeszedł 54/54 sprawdzenia na dwóch tymczasowych kontach i niezależnych sesjach; konta usunięto i zweryfikowano ich brak. Katalog pozostawał lokalny. Odbiór frontendu, domen oraz migracja i odbiór zdalnej bazy Supabase pozostają do wykonania; [szczegóły](cart-favorites-implementation-plan.md).
+
 ## Stan potwierdzony w kodzie
 
 - Repozytorium zawiera API ASP.NET Core na .NET 10. `Program.cs` rejestruje kontrolery, klienta HTTP Supabase Auth, ASP.NET Core Data Protection i `AppDbContext` z Npgsql.

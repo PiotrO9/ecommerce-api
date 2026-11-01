@@ -2,6 +2,16 @@
 
 Cel: opisać własność schematów PostgreSQL, mapowanie EF Core i sposób bezpiecznego rozwijania danych aplikacji. Szczegóły obecnej tabeli są w [user-profiles.md](user-profiles.md).
 
+## Koszyk i ulubione — migracja lokalna 01.11.2026
+
+`20261101132248_AddShoppingCartsAndFavorites` tworzy cztery tabele `app`: `shopping_states` (UUID, konto albo skrót tokenu gościa, termin gościa, wersja i daty), `cart_items` (PK stan/wariant, ilość 1–99), `favorite_lists` (PK konta, unikalny UUID zakresu, wersja i daty) i `favorite_items` (PK konto/wariant, data). Koszyk i lista mają FK do istniejącego PK `auth.users.id`, bez zależności od opcjonalnego profilu. FK pozycji i kont używają kaskadowego usuwania.
+
+CHECK wymaga dokładnie jednego rodzaju właściciela koszyka oraz terminu dla gościa. Częściowe unikalne indeksy chronią konto i skrót tokenu; indeks terminu umożliwia przyszłe czyszczenie. Nowe tabele mają RLS i odebrane uprawnienia `PUBLIC`, `anon`, `authenticated`, `service_role`. Funkcje triggerów nie używają `SECURITY DEFINER` i nie mają publicznego EXECUTE. Każdy odczyt/zapis API nadal filtruje po właścicielu potwierdzonym przez backend.
+
+Triggery pozycji zwiększają wersję koszyka/listy także po SQL i usunięciu wariantu. API serializuje komendy danego właściciela blokadą wiersza, sprawdza zakres i wersję oraz limity liczby wpisów. Limity 100/500 są egzekwowane w serwisach, a CHECK 1–99 również w bazie. Reset katalogu zwiększa wersje i jawnie czyści obie tabele pozycji; zachowuje stany/listy oraz konta. Współdzielona blokada `(20261101,4)` komend i jej wyłączna postać w seederze zapobiegają zapisowi między zmianą wersji a TRUNCATE.
+
+Migrację sprawdzono na nowej izolowanej bazie PostgreSQL 17. **Nie zastosowano jej w Supabase**; nie uruchamiać nowych operacji na zdalnej bazie przed uzgodnioną migracją. Model i granice odbioru: [koszyk i ulubione](cart-favorites-implementation-plan.md).
+
 ## Stan potwierdzony w kodzie i bazie
 
 - `Program.cs` odczytuje `ConnectionStrings:SupabaseDatabase` i rejestruje `AppDbContext` z dostawcą Npgsql. Lokalnie wartość jest przechowywana w .NET user-secrets, nie w `appsettings.json` ani repozytorium.

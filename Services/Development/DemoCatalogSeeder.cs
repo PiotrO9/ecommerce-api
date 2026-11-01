@@ -42,10 +42,20 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         await database.Database.ExecuteSqlRawAsync(
             "SELECT pg_advisory_xact_lock(20261022, 2)", cancellationToken);
 
+        await E_commerce_backend.Services.Shopping.ShoppingWriteLock.ExclusiveAsync(database, cancellationToken);
+        await database.Database.ExecuteSqlRawAsync("""
+            UPDATE app.shopping_states SET cart_version=cart_version+1, updated_at=clock_timestamp()
+            WHERE EXISTS (SELECT 1 FROM app.cart_items i WHERE i.shopping_state_id=shopping_states.id);
+            UPDATE app.favorite_lists SET version=version+1, updated_at=clock_timestamp()
+            WHERE EXISTS (SELECT 1 FROM app.favorite_items i WHERE i.user_id=favorite_lists.user_id);
+            """, cancellationToken);
+
         // Jawny zakres bez CASCADE chroni przyszłe tabele zależne oraz profile i auth.
         // TRUNCATE omija wyzwalacz DELETE historii cen; endpoint działa tylko w Development.
         await database.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE
+                app.cart_items,
+                app.favorite_items,
                 app.collection_operations,
                 app.collection_products,
                 app.collections,
@@ -93,7 +103,8 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
                 app.product_variants, app.attribute_keys, app.attribute_pairs,
                 app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes,
                 app.promotions, app.promotion_variants, app.price_reductions, app.promotion_operations, app.variant_offer_events,
-                app.collections, app.collection_products, app.collection_operations
+                app.collections, app.collection_products, app.collection_operations,
+                app.cart_items, app.favorite_items
             """, cancellationToken);
         var created = data.Created with { OfferEvents = await database.VariantOfferEvents.CountAsync(cancellationToken) };
         await transaction.CommitAsync(cancellationToken);
