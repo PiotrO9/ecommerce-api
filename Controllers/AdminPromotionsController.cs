@@ -20,8 +20,9 @@ public sealed class AdminPromotionsController(IAdministratorAccess access, Promo
     [HttpGet]
     [ProducesResponseType<PromotionListResponse>(200)]
     public Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
-        [FromQuery] string? status = null, [FromQuery] Guid? productId = null, CancellationToken cancellationToken = default) =>
-        Run(_ => service.ListAsync(page, pageSize, status, productId, cancellationToken), cancellationToken);
+        [FromQuery] string? status = null, [FromQuery] Guid? productId = null, CancellationToken cancellationToken = default,
+        [FromQuery] Guid? collectionId = null, [FromQuery] string? scope = null) =>
+        Run(_ => service.ListAsync(page, pageSize, status, productId, cancellationToken, collectionId, scope), cancellationToken);
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PromotionResponse>(200)]
     public Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) => Run(_ => service.GetAsync(id, cancellationToken), cancellationToken);
@@ -41,6 +42,7 @@ public sealed class AdminPromotionsController(IAdministratorAccess access, Promo
     public Task<IActionResult> Preview(Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default) => Run(_ => service.PreviewAsync(id, page, pageSize, cancellationToken), cancellationToken);
     [HttpPost("{id:guid}/activate")]
+    [RequestSizeLimit(1048576)]
     [ProducesResponseType<PromotionCommandResponse>(200)]
     public Task<IActionResult> Activate(Guid id, [FromBody] PromotionActivationRequest? request,
         [FromHeader(Name = "Idempotency-Key")] string? key, [FromHeader(Name = "X-Requested-With")] string? csrf,

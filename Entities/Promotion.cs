@@ -3,7 +3,9 @@ namespace E_commerce_backend.Entities;
 public sealed class Promotion
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ProductId { get; set; }
+    public Guid? ProductId { get; set; }
+    public Guid? CollectionId { get; set; }
+    public string Scope { get; set; } = "product";
     public required string Name { get; set; }
     public required string DiscountType { get; set; }
     public decimal DiscountValue { get; set; }

@@ -182,8 +182,11 @@ public sealed class PromotionPostgresTests
     {
         await using var db = Open();
         var result = await new DemoCatalogSeeder(db).SeedAsync(new(new(25, 25), new(200, 200), new(1, 1)), default);
-        Assert.Equal(2055, result.Added);
-        Assert.Equal(603, result.Created.OfferEvents);
+        Assert.Equal(2089, result.Added);
+        Assert.Equal(602, result.Created.OfferEvents);
+        Assert.Equal(result.Created.Collections, await db.Collections.CountAsync());
+        Assert.Equal(result.Created.CollectionProductLinks, await db.CollectionProducts.CountAsync());
+        Assert.Equal(result.Created.CollectionOperations, await db.CollectionOperations.CountAsync());
         Assert.Equal(result.Created.PriceChanges, await db.VariantPriceChanges.CountAsync());
         Assert.Equal(result.Created.OfferEvents, await db.VariantOfferEvents.CountAsync());
         Assert.Equal(result.Created.Promotions, await db.Promotions.CountAsync());

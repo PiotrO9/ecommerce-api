@@ -11,7 +11,7 @@ Podstawowe historyczne stany cen seeder tworzy z `operation_key`, `changed_by_us
 ## Stan potwierdzony w kodzie
 
 - `POST /api/v1/web/seed` jest mapowany tylko przy `ASPNETCORE_ENVIRONMENT=Development` i `DemoSeed:Enabled=true`. Gdy brakuje `DemoSeed:Key` lub ma on mniej niż 32 znaki, API nie startuje z włączonym seederem.
-- Żądanie wymaga nagłówka `X-Demo-Seed-Key` równego skonfigurowanemu kluczowi. Brak lub niepoprawny klucz zwraca `404`; sukces zwraca `200` z sumą `added` oraz obiektem `created`. W `created` są liczby rekordów utworzonych podczas tego wywołania: `categories`, `products`, `variants`, `attributeKeys`, `attributePairs`, `productCategoryLinks`, `variantAttributeLinks`, `stocks`, `priceChanges`, `offerEvents`, `promotions`, `promotionVariants`, `priceReductions`, `promotionOperations`. Suma pól `created` równa się `added`.
+- Żądanie wymaga nagłówka `X-Demo-Seed-Key` równego skonfigurowanemu kluczowi. Brak lub niepoprawny klucz zwraca `404`; sukces zwraca `200` z sumą `added` oraz obiektem `created`. W `created` są liczby rekordów utworzonych podczas tego wywołania: `categories`, `products`, `variants`, `attributeKeys`, `attributePairs`, `productCategoryLinks`, `variantAttributeLinks`, `stocks`, `priceChanges`, `offerEvents`, `promotions`, `promotionVariants`, `priceReductions`, `promotionOperations`, `collections`, `collectionProductLinks`, `collectionOperations`. Suma pól `created` równa się `added`.
 - Body jest opcjonalne. Pola `categories`, `products` i `variants` niezależnie przyjmują `low`, `med`/`medium` albo `high`; pominięte `categories` i `products` mają wartość `medium`, a `variants` — `low`. `variants` oznacza docelową liczbę wariantów na produkt (bazowa koszulka zawsze ma co najmniej dwa). Niepoprawna wartość zwraca `400`.
 - Poziomy określają zakresy, z których przy **każdym wywołaniu** losowany jest cel (obie granice włącznie):
 
@@ -23,9 +23,9 @@ Podstawowe historyczne stany cen seeder tworzy z `operation_key`, `changed_by_us
 
   Kategorie i produkty mają po jednym celu na żądanie; warianty są losowane osobno dla każdego produktu. Każde wywołanie zaczyna od pustego katalogu, więc nowy poziom zastępuje poprzednio wygenerowany zestaw. Zestaw bazowy ma 3 kategorie, 2 produkty, 2 warianty koszulki i 1 czapki; dodatkowe rekordy uzupełniają go do wylosowanych celów. Liczba wariantów na produkt pozostaje w zakresie 1–6.
 - `DemoCatalogSeeder` zachowuje ręcznie ustalony zestaw: korzenie `Odzież demo` i `Akcesoria demo`, podkategorię `Koszulki demo`, produkt `Koszulka demo` oraz `Czapka demo`. Wyższe poziomy dopisują produkty, kategorie i warianty. Seeder dodaje pary cech, przypisania kategorii, stany wariantów i przykładową historię cen w PLN. Zdjęcia pozostają puste, ponieważ nie ma jeszcze integracji ze Storage.
-- Seeder zapisuje reset i nowe dane w jednej transakcji. Najpierw czyści wszystkie rekordy z czternastu tabel `app`: `price_reductions`, `promotion_variants`, `promotion_operations`, `promotions`, `variant_offer_events`, `variant_price_changes`, `variant_stock`, `variant_attribute_pairs`, `product_categories`, `product_variants`, `products`, `attribute_pairs`, `attribute_keys`, `categories`. Obejmuje to także dane niewytworzone przez seeder i wcześniejszą historię cen. Nie czyści `app.user_profiles`, tabel `auth` ani historii migracji. `TRUNCATE ... RESTRICT` nie rozszerza zakresu na przyszłe tabele zależne; gdy taka zależność powstanie, reset zakończy się błędem i wycofa transakcję.
+- Seeder zapisuje reset i nowe dane w jednej transakcji. Najpierw czyści wszystkie rekordy z siedemnastu tabel `app`: `collections`, `collection_products`, `collection_operations`, `price_reductions`, `promotion_variants`, `promotion_operations`, `promotions`, `variant_offer_events`, `variant_price_changes`, `variant_stock`, `variant_attribute_pairs`, `product_categories`, `product_variants`, `products`, `attribute_pairs`, `attribute_keys`, `categories`. Obejmuje to także dane niewytworzone przez seeder i wcześniejszą historię cen. Nie czyści `app.user_profiles`, tabel `auth` ani historii migracji. `TRUNCATE ... RESTRICT` nie rozszerza zakresu na przyszłe tabele zależne; gdy taka zależność powstanie, reset zakończy się błędem i wycofa transakcję.
 - Po resecie seeder buduje cały zestaw encji i powiązań w pamięci, bez zapytań o istnienie rekordów. UUID są nadawane w aplikacji. Pierwsze `SaveChangesAsync` zapisuje szkice oraz zależne kategorie, cechy, warianty, powiązania, stany i ceny; EF Core ustala kolejność poleceń według relacji. Drugie `SaveChangesAsync` publikuje produkty i warianty. Błąd na dowolnym etapie wycofuje zarówno reset, jak i nowe dane. Dwa równoczesne wywołania serializuje blokada transakcyjna PostgreSQL.
-- Przed zatwierdzeniem transakcji seeder wykonuje `ANALYZE` dla czternastu tabel katalogu. Po pełnym `TRUNCATE` i większym zapisie aktualne statystyki pozwalają PostgreSQL dobrać plan wyszukiwania do nowej wielkości katalogu. Gdy `ANALYZE` zawiedzie, transakcja seedera zostaje wycofana.
+- Przed zatwierdzeniem transakcji seeder wykonuje `ANALYZE` dla siedemnastu tabel katalogu. Po pełnym `TRUNCATE` i większym zapisie aktualne statystyki pozwalają PostgreSQL dobrać plan wyszukiwania do nowej wielkości katalogu. Gdy `ANALYZE` zawiedzie, transakcja seedera zostaje wycofana.
 - `TRUNCATE` omija wyzwalacz blokujący `DELETE` w historii cen. Ten pełny reset jest przeznaczony wyłącznie do developerskich baz z danymi do odtworzenia; nie należy kierować endpointu na bazę z rzeczywistą historią cen.
 
 ## Scenariusze promocji (31.10.2026)
@@ -34,9 +34,15 @@ Produkty `demo-produkt-03` i `demo-produkt-04` mają aktywną promocję procento
 
 Scenariusze 03–07 istnieją na każdym obecnym poziomie liczby produktów. Nie mają osobnych poziomów w body: ich liczba jest stała, natomiast udziały, obniżki i ceny zależą od liczby wariantów tych produktów. To celowy wybór: reprezentatywne scenariusze zamiast masowego tworzenia takich samych promocji. Bazowy zestaw dwóch produktów używany w testach jednostkowych nie zawiera tych pięciu dodatkowych produktów.
 
-Nowe liczniki: `promotions` → `app.promotions`, `promotionVariants` → `app.promotion_variants`, `priceReductions` → `app.price_reductions`, `promotionOperations` → `app.promotion_operations`, `offerEvents` → `app.variant_offer_events`. `offerEvents` obejmuje również rekordy utworzone przez triggery i jest odczytywany przed zatwierdzeniem transakcji, pod blokadą resetu. Suma wszystkich 14 liczników daje `added`.
+Nowe liczniki: `promotions` → `app.promotions`, `promotionVariants` → `app.promotion_variants`, `priceReductions` → `app.price_reductions`, `promotionOperations` → `app.promotion_operations`, `offerEvents` → `app.variant_offer_events`. `offerEvents` obejmuje również rekordy utworzone przez triggery i jest odczytywany przed zatwierdzeniem transakcji, pod blokadą resetu. Suma wszystkich 17 liczników daje `added`.
 
 Zdarzenia z cofniętą datą mają `source=demo`; służą wyłącznie odtwarzalnym danym syntetycznym. Operacje demonstracyjne mają `kind=demo` i brak autora/klucza; ceny promocji wskazują te operacje oraz poprzednią cenę. Seeder nie tworzy fikcyjnych administratorów. Reset po rzeczywistej aktywacji i zakończeniu został sprawdzony w testach PostgreSQL.
+
+## Kolekcje — 01.11.2026
+
+Kolekcje: `demo-kolekcja` zawiera czapkę, produkt 11 i ukryty produkt 10; `demo-pomysly-na-prezent` czapkę i produkt 12. Powstają też pusty szkic i ukryta kolekcja. `demo-kolekcja-aktywna` obejmuje produkty 8/13 z aktywną promocją, a `demo-kolekcja-zakonczona` produkty 9/14 z zakończoną. Produkty 10 i ich warianty są pomijane w odczycie publicznym zgodnie ze statusem produktu. Scenariusze wymagające wyższego indeksu są pomijane w mniejszych zestawach używanych w testach; wszystkie występują na normalnych poziomach endpointu.
+
+Nowe liczniki: `collections`, `collectionProductLinks`, `collectionOperations`. Ostatni wynosi w seedzie 0: nie tworzymy fikcyjnych operacji administratora. Mimo tego tabela należy do resetu, bo rzeczywiste operacje API mogą już w niej istnieć. Publikacja kolekcji następuje po zapisaniu produktów, cen i przypisań; przed zmianą statusu EF odczytuje wersję nadaną przez triggery przypisań. Nie dodano nowego pola body seedera — generowany jest stały zestaw scenariuszy.
 
 ## Ręczne uruchomienie
 
@@ -86,7 +92,7 @@ Przykładowa odpowiedź dla jednego z możliwych losowań domyślnych poziomów 
 
 ```json
 {
-  "added": 2055,
+  "added": 2089,
   "created": {
     "categories": 25,
     "products": 200,
@@ -96,12 +102,15 @@ Przykładowa odpowiedź dla jednego z możliwych losowań domyślnych poziomów 
     "productCategoryLinks": 200,
     "variantAttributeLinks": 400,
     "stocks": 201,
-    "priceChanges": 206,
-    "offerEvents": 603,
-    "promotions": 3,
-    "promotionVariants": 3,
-    "priceReductions": 3,
-    "promotionOperations": 4
+    "priceChanges": 212,
+    "offerEvents": 602,
+    "promotions": 5,
+    "promotionVariants": 7,
+    "priceReductions": 7,
+    "promotionOperations": 7,
+    "collections": 6,
+    "collectionProductLinks": 10,
+    "collectionOperations": 0
   }
 }
 ```

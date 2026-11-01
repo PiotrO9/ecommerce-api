@@ -136,3 +136,32 @@ Diagnostyka przez interceptor EF potwierdziła 4 komendy dla katalogu z ceną i 
 Wyniki są wystarczające do dalszego lokalnego rozwoju tej wersji. To nie prognoza Supabase ani test wielu jednoczesnych administratorów; 10 cykli zapisu to mała próba, p95 odpowiada największej zmierzonej wartości. Wspólna blokada serializuje zapisy katalogu, więc większy ruch administracyjny wymaga pomiaru oczekiwania na blokadę. Nie wykonano nowego porównania A–B–A, więc tej serii nie należy traktować jako dowodu poprawy względem poprzednich pomiarów.
 
 Odtworzenie: [harness promocji](../tests/performance/README.md#pomiar-promocji).
+
+## Kolekcje — pomiar 01.11.2026
+
+Na tej samej lokalnej bazie 5000 produktów porównano przed zmianą danych build z commita `8c9ae7f` i nowy build kolekcji, oba z najnowszym schematem. Serwery działały kolejno, bez logowania SQL. Każdy scenariusz: 5 rozgrzewek, 20 pomiarów HTTP, jeden klient. Wszystkie odpowiedzi `200`, identyczne liczby wyników:
+
+| Wyszukiwanie | Przed p50 / p95 | Po p50 / p95 |
+| --- | ---: | ---: |
+| Jedna cecha | 127,6 / 197,3 ms | 132,8 / 233,6 ms |
+| Dwie cechy | 201,4 / 214,9 ms | 200,5 / 205,9 ms |
+| Pięć cech | 216,1 / 221,7 ms | 215,2 / 221,5 ms |
+| Tylko cena | 269,3 / 280,2 ms | 256,6 / 276,1 ms |
+| Dwie cechy i cena | 277,9 / 287,6 ms | 276,7 / 282,1 ms |
+| Dwie cechy, cena i sort | 341,8 / 357,9 ms | 342,0 / 368,0 ms |
+
+Mediany są zbliżone; wzrosło p95 pierwszego scenariusza. To pojedyncze porównanie A–B, więc nie rozstrzyga, czy ogon pierwszego przypadku to wahanie środowiska. Nie ma dowodu poprawy wydajności. Nowe zawężenie kolekcji nie jest wykonywane bez jej selektora. W razie powtarzalnego pogorszenia trzeba odtworzyć A–B–A i zebrać plany; wyniki tej sesji nie są bezpośrednio porównywalne z innym dniem audytu.
+
+Następnie harness `tests/performance/collections/` przygotował jawnie syntetyczną kompletną ofertę wybranych wariantów (`source=demo`) i regularne ceny startowe w izolowanej bazie. Istniejący zbiór performance miał niezarządzane rabaty, których normalny serwis słusznie nie nadpisuje. Nie wykonano takiego przygotowania w Supabase. Dla każdego rozmiaru wykonano 3 cykle rozgrzewające i 5 mierzonych; każdy kolejny rabat był większy i uwzględniał minimum wcześniejszej akcji. Czasy serwisu obejmują EF/transakcję, bez HTTP i zewnętrznego Auth.
+
+| Produkty / warianty | Podgląd p50 / p95 | Aktywacja p50 / p95 | Koniec p50 / p95 |
+| --- | ---: | ---: | ---: |
+| 10 / 30 | 5,1 / 5,8 ms | 18,4 / 20,4 ms | 10,5 / 18,7 ms |
+| 100 / 300 | 52,8 / 63,0 ms | 308,8 / 423,8 ms | 198,0 / 245,1 ms |
+| 500 / 1500 | 87,0 / 124,5 ms | 748,0 / 779,0 ms | 372,2 / 412,1 ms |
+
+Komendy EF: podgląd 10 dla każdego rozmiaru; start 15/15/19, koniec 10/10/11 (więcej batchy zapisu przy dużym zestawie), wyszukiwanie w kolekcji 7. Brak osobnego zapytania dla każdego produktu/wariantu. Licznik nie obejmuje wewnętrznej pracy triggerów ani BEGIN/COMMIT.
+
+Pojedyncza równoległa transakcja czekająca na tę samą blokadę podczas ostatniej aktywacji czekała odpowiednio 0,5 / 335,6 / 694,1 ms. To obserwacja mechanizmu serializacji, nie p95 ruchu wielu administratorów. Najmniejsza aktywacja mogła niemal skończyć się przed nadejściem drugiego żądania. Przy pięciu próbkach p95 jest maksimum; pomiar nie uzasadnia prognozy dla zdalnego Supabase.
+
+Wniosek projektowy: synchroniczna akcja 1500 wariantów jest użyteczna na tym lokalnym zbiorze, ale blokuje innych piszących przez znaczną część sekundy. Zachowano roboczy limit 3000 wariantów kolekcji; nie zmierzono czasu na jego granicy. Test PostgreSQL potwierdza odrzucenie 3001 wariantów przed kalkulacją historii i poprawny zapis maksymalnego seedera 500 produktów / 3000 wariantów. Dalsze zwiększanie limitu wymaga pomiaru, zwłaszcza na bazie z długą historią.

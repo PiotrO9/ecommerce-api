@@ -4,9 +4,11 @@ Cel: zapisać decyzje o cenie wariantu i sposobie przechowywania zmian cen, wraz
 
 Wdrożony zakres 31.10.2026 opisuje [plan promocji](promotion-implementation-plan.md): promocja jednego produktu, rejestr oferowania, zapisane odniesienie, transakcje i endpointy. Szersza analiza poniżej jest historyczną propozycją przyszłych rozszerzeń; aktualne reguły pierwszej wersji opisuje ten plan i sekcja na końcu dokumentu.
 
+Rozszerzenie wdrożone 01.11.2026: [kolekcje i promocje kolekcji](collection-implementation-plan.md). Obejmuje cel promocji, zamrożenie wariantów, kontrolę wersji kolekcji i zachowanie ponowień starych komend produktu.
+
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` czternastu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Odczyt szczegółów produktu wybiera bieżącą cenę sprzedaży wariantu osobno dla każdej waluty. Wewnętrzny `VariantPriceService` dopisuje zwykłą cenę PLN z kontrolą wersji i ponowień. Administracyjny kontroler udostępnia bieżącą cenę, zapis oraz historię. Wdrożono promocje pojedynczego produktu i zapisane odniesienie wcześniejszej ceny dla zwykłych towarów. Automatyczne testy na PostgreSQL potwierdziły blokadę `UPDATE` i `DELETE`. Migracje metadanych operacji i dostępu administratora zastosowano w skonfigurowanej bazie Supabase 31.10.2026.
+Backend ma encję `VariantPriceChange`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_price_changes`. Kwoty są mapowane na `numeric(18,2)`, waluta ma domyślnie `PLN`, a indeks obejmuje wariant, walutę i daty zdarzenia. Migracja blokuje aktualizację i usuwanie rekordów historii cen przez `UPDATE` i `DELETE`. Ręczny endpoint developerski [seedera](demo-seed.md) wykonuje pełny `TRUNCATE` siedemnastu tabel katalogowych, w tym historii cen, omijając ten wyzwalacz; jest przeznaczony tylko dla bazy z danymi do odtworzenia. Odczyt szczegółów produktu wybiera bieżącą cenę sprzedaży wariantu osobno dla każdej waluty. Wewnętrzny `VariantPriceService` dopisuje zwykłą cenę PLN z kontrolą wersji i ponowień. Administracyjny kontroler udostępnia bieżącą cenę, zapis oraz historię. Wdrożono promocje pojedynczego produktu i zapisane odniesienie wcześniejszej ceny dla zwykłych towarów. Automatyczne testy na PostgreSQL potwierdziły blokadę `UPDATE` i `DELETE`. Migracje metadanych operacji i dostępu administratora zastosowano w skonfigurowanej bazie Supabase 31.10.2026.
 
 ## Ustalenia z właścicielem projektu
 
@@ -82,7 +84,7 @@ Zmiana dotyczy wyłącznie odczytu. Nie zmienia schematu bazy ani seedera.
 2. Dla planowanego odczytu katalogu przyjęto tymczasowo wyłącznie `PLN`. Czy zapis cen i cały proces sprzedaży mają formalnie blokować inne waluty? Tego nie ustalono; pole waluty pozostaje w modelu.
 3. Pierwsza wersja: jedna kwota konsumencka PLN, `numeric(18,2)`, końcowe zaokrąglenie `AwayFromZero`. Osobne podatki/netto i szczególne zasady checkoutu pozostają do ustalenia.
 4. Harmonogramy są poza pierwszą wersją. Równoczesne zapisy mają blokady, kontrolę oczekiwanej wersji i klucz ponowienia.
-5. Pierwsza wersja powiązuje ceny z nadrzędną operacją i obniżką oraz blokuje nakładanie aktywnych udziałów. Rabaty koszykowe, kolekcje i łączenie promocji pozostają rozszerzeniami.
+5. Pierwsza wersja powiązuje ceny z nadrzędną operacją i obniżką oraz blokuje nakładanie aktywnych udziałów. Rabaty koszykowe, cały katalog i łączenie promocji pozostają rozszerzeniami; kolekcje wdrożono 01.11.2026.
 6. Rejestr oferty oparty o triggery i historię cen wdrożono 31.10.2026. Proces potwierdzonego importu wcześniejszej oferty pozostaje osobnym zadaniem.
 
 ## Propozycja wdrożenia modułu 3 — analiza z 28.10.2026
@@ -206,3 +208,9 @@ Nowe tabele: `promotions`, `promotion_variants`, `price_reductions`, `variant_of
 Wszystkie aplikacyjne zapisy cen/promocji, triggery zapisu katalogu i seeder pobierają najpierw tę samą blokadę transakcyjną `(20261031,3)`. To świadome uproszczenie serializujące zapisy; odczyty działają równolegle. Szczegółowa kolejność, powód i pomiar są w [planie promocji](promotion-implementation-plan.md).
 
 Migracja `20261031120821_AddProductPromotions` została zastosowana na lokalnym PostgreSQL i w skonfigurowanym Supabase. Próba na 43 467 istniejących cenach zachowała identyczny skrót ID/kwot/dat i liczbę rekordów. Importowane warianty zaczynają z niepełną historią widoczności; do aktywacji wymagają wiarygodnego okna, a nie cofnięcia daty publikacji. Seeder ma jawnie syntetyczne scenariusze, 14 tabel resetu i pięć nowych liczników. Instrukcja użycia i publiczne DTO: [api-contract.md](api-contract.md#promocje-produktu).
+
+## Promocje kolekcji — 01.11.2026
+
+Wdrożono `scope=collection` z `collectionId`, bez zmiany tras promocji. Product jest domyślny dla starych body. CHECK bazy wymaga dokładnie jednego celu. Podgląd zbiorczo ocenia warianty publicznych produktów z kolekcji, pokazuje wykluczenia i jej aktualną wersję. Aktywacja sprawdza `expectedCollectionVersion`, dokładne warianty i wersje cen. Limit kolekcji wynosi 3000 objętych wariantów, a start ma limit body 1 MiB. Zakończenie działa na utrwalonych udziałach także po edycji/ukryciu kolekcji.
+
+Pozostałe zasady kwot, wcześniejszego odniesienia, pojedynczej aktywnej promocji i zwykłych cen nie zmieniły się. Historia nie jest resetowana przez zmianę składu kolekcji. Zachowano fingerprint starych komend produktu i odtwarzanie starych odpowiedzi JSON; operacje kolekcji używają formatu `collection/v1:`. Dalsze zadania to cały katalog, harmonogramy i łączenie promocji. Szczegóły odbioru: [plan kolekcji](collection-implementation-plan.md).

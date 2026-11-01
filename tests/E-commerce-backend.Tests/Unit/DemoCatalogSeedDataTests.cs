@@ -12,8 +12,8 @@ public sealed class DemoCatalogSeedDataTests
     {
         var data = DemoCatalogSeedData.Create(new DemoSeedOptions(new(3, 3), new(2, 2), new(1, 1)), Now);
 
-        Assert.Equal(30, data.Entities.Count);
-        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4, OfferEvents: 3), data.Created);
+        Assert.Equal(37, data.Entities.Count);
+        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4, OfferEvents: 3, Collections: 4, CollectionProductLinks: 3), data.Created);
         Assert.All(data.Entities.OfType<VariantPriceChange>(), price =>
         {
             Assert.Null(price.OperationKey);
@@ -36,9 +36,11 @@ public sealed class DemoCatalogSeedDataTests
         Assert.Equal(500, data.Created.Products);
         Assert.Equal(3000, data.Created.Variants);
         Assert.Equal(3000, data.Created.Stocks);
-        Assert.Equal(3025, data.Created.PriceChanges);
-        Assert.Equal(3, data.Created.Promotions);
-        Assert.Equal(18, data.Created.PriceReductions);
+        Assert.Equal(3061, data.Created.PriceChanges);
+        Assert.Equal(5, data.Created.Promotions);
+        Assert.Equal(42, data.Created.PriceReductions);
+        Assert.Equal(6, data.Created.Collections);
+        Assert.Equal(10, data.Created.CollectionProductLinks);
         Assert.Equal(data.Entities.Count, data.Created.Sum());
         AssertValidRelations(data);
 
@@ -76,5 +78,11 @@ public sealed class DemoCatalogSeedDataTests
         Assert.All(data.Entities.OfType<VariantStock>(), stock => Assert.Contains(stock.VariantId, variants));
         Assert.All(data.Entities.OfType<VariantPriceChange>(), price => Assert.Contains(price.VariantId, variants));
         Assert.All(data.Products, product => Assert.Contains(product.Id, data.Variants.Select(variant => variant.ProductId)));
+        var collections = data.Entities.OfType<Collection>().Select(c => c.Id).ToHashSet();
+        Assert.All(data.Entities.OfType<CollectionProduct>(), link =>
+        {
+            Assert.Contains(link.CollectionId, collections);
+            Assert.Contains(link.ProductId, products);
+        });
     }
 }

@@ -19,10 +19,14 @@ public sealed record DemoSeedCreated(
     int Promotions = 0,
     int PromotionVariants = 0,
     int PriceReductions = 0,
-    int PromotionOperations = 0)
+    int PromotionOperations = 0,
+    int Collections = 0,
+    int CollectionProductLinks = 0,
+    int CollectionOperations = 0)
 {
     public int Sum() => Categories + Products + Variants + AttributeKeys + AttributePairs + ProductCategoryLinks
-        + VariantAttributeLinks + Stocks + PriceChanges + OfferEvents + Promotions + PromotionVariants + PriceReductions + PromotionOperations;
+        + VariantAttributeLinks + Stocks + PriceChanges + OfferEvents + Promotions + PromotionVariants + PriceReductions + PromotionOperations
+        + Collections + CollectionProductLinks + CollectionOperations;
 }
 
 public sealed record DemoCatalogSeedResult(int Added, DemoSeedCreated Created);
@@ -42,6 +46,9 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         // TRUNCATE omija wyzwalacz DELETE historii cen; endpoint działa tylko w Development.
         await database.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE
+                app.collection_operations,
+                app.collection_products,
+                app.collections,
                 app.price_reductions,
                 app.promotion_variants,
                 app.promotion_operations,
@@ -71,8 +78,13 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         }
         foreach (var product in data.Products)
         {
-            product.Status = CatalogStatus.Published;
+            product.Status = product.Slug == "demo-produkt-10" ? CatalogStatus.Hidden : CatalogStatus.Published;
             product.PublishedAt = data.CreatedAt;
+        }
+        foreach (var collection in data.CollectionsToPublish)
+        {
+            await database.Entry(collection).ReloadAsync(cancellationToken);
+            collection.Status = "Published";
         }
         await database.SaveChangesAsync(cancellationToken);
         // Po dużym TRUNCATE i zapisie planista potrzebuje statystyk nowego katalogu.
@@ -80,7 +92,8 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
             ANALYZE app.categories, app.products, app.product_categories,
                 app.product_variants, app.attribute_keys, app.attribute_pairs,
                 app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes,
-                app.promotions, app.promotion_variants, app.price_reductions, app.promotion_operations, app.variant_offer_events
+                app.promotions, app.promotion_variants, app.price_reductions, app.promotion_operations, app.variant_offer_events,
+                app.collections, app.collection_products, app.collection_operations
             """, cancellationToken);
         var created = data.Created with { OfferEvents = await database.VariantOfferEvents.CountAsync(cancellationToken) };
         await transaction.CommitAsync(cancellationToken);
@@ -96,6 +109,8 @@ public sealed class DemoCatalogSeedData
     private readonly List<Product> _products = [];
     private readonly List<ProductVariant> _variants = [];
     private readonly Dictionary<Guid, VariantPriceChange> _lastPrices = [];
+    private readonly Dictionary<int, Collection> _promotionCollections = [];
+    private readonly List<Collection> _collectionsToPublish = [];
 
     private DemoCatalogSeedData(DateTime createdAt) => CreatedAt = createdAt;
 
@@ -103,6 +118,7 @@ public sealed class DemoCatalogSeedData
     public IReadOnlyList<object> Entities => _entities;
     public IReadOnlyList<Product> Products => _products;
     public IReadOnlyList<ProductVariant> Variants => _variants;
+    public IReadOnlyList<Collection> CollectionsToPublish => _collectionsToPublish;
 
     public DemoSeedCreated Created => new(
         _entities.OfType<Category>().Count(),
@@ -118,7 +134,10 @@ public sealed class DemoCatalogSeedData
         _entities.OfType<Promotion>().Count(),
         _entities.OfType<PromotionVariant>().Count(),
         _entities.OfType<PriceReduction>().Count(),
-        _entities.OfType<PromotionOperation>().Count());
+        _entities.OfType<PromotionOperation>().Count(),
+        _entities.OfType<Collection>().Count(),
+        _entities.OfType<CollectionProduct>().Count(),
+        _entities.OfType<CollectionOperation>().Count());
 
     public static DemoCatalogSeedData Create(DemoSeedOptions options, DateTime createdAt)
     {
@@ -235,6 +254,7 @@ public sealed class DemoCatalogSeedData
             }
         }
 
+        data.AddCollectionScenarios(createdAt);
         data.AddPromotionScenarios(createdAt);
         return data;
     }
@@ -278,10 +298,17 @@ public sealed class DemoCatalogSeedData
             foreach (var variant in variants)
                 Add(new VariantOfferEvent { VariantId = variant.Id, OccurredAt = now.AddDays(index == 6 ? -2 : index == 7 ? -5 : -40),
                     Visible = true, CompleteFromBirth = index != 7, Source = "demo" });
-            if (index is not (3 or 4 or 5)) continue;
-            var ended = index == 5;
+            if (index is not (3 or 4 or 5 or 8 or 9)) continue;
+            var ended = index is 5 or 9;
+            var collection = _promotionCollections.GetValueOrDefault(index);
+            if (collection is not null)
+            {
+                var targets = _entities.OfType<CollectionProduct>().Where(l => l.CollectionId == collection.Id).Select(l => l.ProductId).ToHashSet();
+                variants = _variants.Where(v => targets.Contains(v.ProductId)).ToArray();
+            }
             var start = now.AddDays(-4); var end = now.AddDays(-2);
-            var promotion = Add(new Promotion { ProductId = product.Id, Name = $"Demo: promocja {index}",
+            var promotion = Add(new Promotion { ProductId = collection is null ? product.Id : null, CollectionId = collection?.Id,
+                Scope = collection is null ? "product" : "collection", Name = $"Demo: promocja {index}",
                 DiscountType = index == 3 ? "percentage" : "amount", DiscountValue = index == 3 ? 20 : 5,
                 Status = ended ? "Ended" : "Active", Version = ended ? 3 : 2, CreatedAt = now.AddDays(-6),
                 UpdatedAt = ended ? end : start, ActivatedAt = start, EndedAt = ended ? end : null });
@@ -304,5 +331,23 @@ public sealed class DemoCatalogSeedData
                         PreviousPriceChangeId = price.Id, PromotionOperationId = ending.Id });
             }
         }
+    }
+
+    private void AddCollectionScenarios(DateTime now)
+    {
+        Collection Create(string slug, string name, bool publish, params int[] indexes)
+        {
+            var c = Add(new Collection { Slug = slug, DisplayName = name, CreatedAt = now, UpdatedAt = now });
+            if (publish) _collectionsToPublish.Add(c);
+            foreach (var index in indexes.Distinct().Where(i => i <= _products.Count))
+                Add(new CollectionProduct { CollectionId = c.Id, ProductId = _products[index - 1].Id, CreatedAt = now });
+            return c;
+        }
+        Create("demo-kolekcja", "Kolekcja demo", true, 2, 11, 10);
+        Create("demo-pomysly-na-prezent", "Pomysły na prezent demo", true, 2, 12);
+        Create("demo-szkic-kolekcji", "Szkic pustej kolekcji", false);
+        Create("demo-ukryta-kolekcja", "Ukryta kolekcja", false, 1).Status = "Hidden";
+        if (_products.Count >= 8) _promotionCollections[8] = Create("demo-kolekcja-aktywna", "Kolekcja z aktywną promocją", true, 8, 13);
+        if (_products.Count >= 9) _promotionCollections[9] = Create("demo-kolekcja-zakonczona", "Kolekcja z zakończoną promocją", true, 9, 14);
     }
 }

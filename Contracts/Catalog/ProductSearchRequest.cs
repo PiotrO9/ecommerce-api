@@ -5,6 +5,8 @@ public sealed class ProductSearchRequest
     public string? Q { get; set; }
     public Guid? CategoryId { get; set; }
     public string? CategorySlug { get; set; }
+    public Guid? CollectionId { get; set; }
+    public string? CollectionSlug { get; set; }
     public List<ProductAttributeFilterRequest>? Attributes { get; set; }
     public int? Page { get; set; }
     public int? PageSize { get; set; }

@@ -134,3 +134,9 @@ Przykład: produkt `Koszulka` ma wariant `SKU-RED-S` z parami `kolor=czerwony` i
 - Generowanie `Slug` kategorii z nazwy oraz testy równoczesnych zmian drzewa na PostgreSQL.
 - Przy projektowaniu widoku: format publicznych adresów kategorii, ewentualne przekierowania oraz kolejność kategorii mających tego samego rodzica.
 - Model promocji nie jest częścią obecnych tabel katalogu. Wstępne powiązanie stanu z wariantem jest w [modelu magazynu](inventory-model.md), a cena wariantu i uzgodniona koncepcja jej historii w [modelu cen](pricing-model.md).
+
+## Kolekcje — 01.11.2026
+
+Kolekcje są wdrożonym, płaskim grupowaniem niezależnym od kategorii. `Collection` ma UUID, DisplayName, Slug, Status, Version, CreatedAt, UpdatedAt; `CollectionProduct` łączy wiele produktów z wieloma kolekcjami bez powtarzania pary. Uprawnienia i ponowienia zapisów przechodzą przez `CollectionService` i administracyjne endpointy kolekcji. Status kolekcji nie jest statusem produktu — ukryty zbiór nie wycofuje produktów z katalogu ani nie kończy promocji.
+
+Publiczne odczyty kolekcji pokazują tylko opublikowane kolekcje i widoczne produkty. Wyszukiwanie może przecinać kolekcję z kategorią i dynamicznymi cechami wariantów. Wdrożone reguły, pola, ograniczenia i zakończone etapy są w [collection-implementation-plan.md](collection-implementation-plan.md); kontrakt i przykłady w [api-contract.md](api-contract.md#kolekcje-i-promocje-kolekcji--01112026).

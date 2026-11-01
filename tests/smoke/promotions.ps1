@@ -50,7 +50,7 @@ try {
     $found = Request GET "/categories/$probe" $null $null
     Check ($found.id -eq $probe) 'API reads the isolated local database before seed reset'
     $seed = Request POST '/seed' @{ categories = 'low'; products = 'low'; variants = 'medium' } $null 200 @{ 'X-Demo-Seed-Key' = $env:ECOMMERCE_SMOKE_SEED_KEY }
-    Check ($seed.created.promotions -eq 3 -and $seed.added -gt 0) 'HTTP seeder creates promotion scenarios and counters'
+    Check ($seed.created.promotions -eq 5 -and $seed.created.collections -eq 6 -and $seed.added -gt 0) 'HTTP seeder creates promotion/collection scenarios and counters'
     foreach ($role in @('administrator', 'customer')) {
         $email = "codex-promotion-$role-$run@example.invalid"
         $password = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)) + 'Aa1!'
@@ -135,7 +135,8 @@ try {
     Check ($endReplay.replayed -and $finalHistory.totalItems -eq $historyBefore.totalItems + 2) 'Ending replay leaves exactly two new price records per variant'
     Request POST "/admin/promotions/$id/activate" @{ expectedVersion = $end.promotion.version; variants = @($preview.expectedPrices) } $admin 409 (WriteHeaders) | Out-Null
     Check $true 'Ended promotion cannot be reactivated'
-    $fixedRule = @{ productId = $product.id; name = 'HTTPS smoke fixed amount'; discountType = 'amount'; discountValue = [decimal]::Round($baseAmount * [decimal]0.3, 2) }
+    $maxBasis = ($product.variants | ForEach-Object { $_.currentPrices[0].baseAmount } | Measure-Object -Maximum).Maximum
+    $fixedRule = @{ productId = $product.id; name = 'HTTPS smoke fixed amount'; discountType = 'amount'; discountValue = [decimal]::Round([decimal]$maxBasis * [decimal]0.3, 2) }
     $fixed = Request POST '/admin/promotions' $fixedRule $admin 201 (WriteHeaders)
     $fixedId = $fixed.promotion.id
     $fixedPreview = Request POST "/admin/promotions/$fixedId/preview" $null $admin
@@ -148,6 +149,52 @@ try {
     Request POST "/admin/promotions/$fixedId/end" @{ expectedVersion = $fixedActive.promotion.version } $admin 200 (WriteHeaders) | Out-Null
     $fixedHistory = Request GET "/admin/variants/$($variant.id)/price-changes" $null $admin
     Check ($fixedHistory.totalItems -eq $historyBefore.totalItems + 4) 'Both promotion cycles leave exactly four new price records per variant'
+    $collectionRule = @{ displayName = 'HTTPS collection'; slug = "smoke-collection-$run" }
+    $collection = (Request POST '/admin/collections' $collectionRule $admin 201 (WriteHeaders)).collection
+    $collectionId = $collection.id
+    $secondProduct = Request GET '/products?slug=demo-produkt-11' $null $null
+    $linked = (Request PUT "/admin/collections/$collectionId/products" @{ expectedVersion = $collection.version; productIds = @($product.id, $secondProduct.id) } $admin 200 (WriteHeaders)).collection
+    $collection = (Request PUT "/admin/collections/$collectionId" @{ displayName = $collection.displayName; slug = $collection.slug; status = 'Published'; expectedVersion = $linked.version } $admin 200 (WriteHeaders)).collection
+    $members = Request GET "/admin/collections/$collectionId/products?pageSize=1" $null $admin
+    Check ($members.items.Count -eq 1 -and $members.productIds.Count -eq 2) 'Collection administration publishes a versioned full set with paged details'
+    foreach ($operation in @(
+        @{ Method = 'GET'; Path = '/admin/collections'; Body = $null },
+        @{ Method = 'GET'; Path = "/admin/collections/$collectionId"; Body = $null },
+        @{ Method = 'GET'; Path = "/admin/collections/$collectionId/products"; Body = $null },
+        @{ Method = 'POST'; Path = '/admin/collections'; Body = $collectionRule },
+        @{ Method = 'PUT'; Path = "/admin/collections/$collectionId"; Body = $collectionRule + @{ expectedVersion = $collection.version; status = 'Hidden' } },
+        @{ Method = 'PUT'; Path = "/admin/collections/$collectionId/products"; Body = @{ expectedVersion = $collection.version; productIds = @() } }
+    )) { Request $operation.Method $operation.Path $operation.Body $customer 403 (WriteHeaders) | Out-Null }
+    Check $true 'All six collection administration routes reject the real customer'
+    $publicCollection = Request GET "/collections/details?slug=$($collection.slug)" $null $null
+    $collectionPage = Request GET "/products/by-collection?collectionId=$collectionId&page=1&pageSize=1" $null $null
+    Check ($publicCollection.id -eq $collectionId -and $collectionPage.pagination.totalItems -eq 2) 'Public collection detail and product paging use the new scope'
+    $collectionPromo = (Request POST '/admin/promotions' @{ scope = 'collection'; collectionId = $collectionId; name = 'Collection -50%'; discountType = 'percentage'; discountValue = 50 } $admin 201 (WriteHeaders)).promotion
+    $collectionPromoId = $collectionPromo.id
+    $oldPreview = Request POST "/admin/promotions/$collectionPromoId/preview" $null $admin
+    $collection = (Request PUT "/admin/collections/$collectionId" @{ displayName = 'Changed after preview'; slug = $collection.slug; status = 'Published'; expectedVersion = $collection.version } $admin 200 (WriteHeaders)).collection
+    Request POST "/admin/promotions/$collectionPromoId/activate" @{ expectedVersion = $oldPreview.version; expectedCollectionVersion = $oldPreview.collectionVersion; variants = @($oldPreview.expectedPrices) } $admin 409 (WriteHeaders) | Out-Null
+    Check $true 'Collection change invalidates the old promotion preview'
+    $preview = Request POST "/admin/promotions/$collectionPromoId/preview?pageSize=1" $null $admin
+    $collectionActivation = @{ expectedVersion = $preview.version; expectedCollectionVersion = $preview.collectionVersion; variants = @($preview.expectedPrices) }
+    $collectionKey = [guid]::NewGuid().ToString()
+    $collectionActive = Request POST "/admin/promotions/$collectionPromoId/activate" $collectionActivation $admin 200 (WriteHeaders $collectionKey)
+    Check ($collectionActive.promotion.scope -eq 'collection' -and $collectionActive.promotion.variants.Count -eq $preview.totalVariants) 'Collection promotion atomically activates all products and variants'
+    $scoped = Request POST '/products/search' @{ collectionId = $collectionId; categoryId = $product.categories[0].id; q = 'Czapka'; minPrice = 25; maxPrice = 25 } $null
+    Check ($scoped.items.Count -eq 1 -and $scoped.items[0].pricesFrom[0].amount -eq 25) 'Collection/category intersection filters the same discounted variant'
+    Request GET "/products/filter-options?collectionId=$collectionId" $null $null | Out-Null
+    $collection = (Request PUT "/admin/collections/$collectionId/products" @{ expectedVersion = $collection.version; productIds = @($secondProduct.id) } $admin 200 (WriteHeaders)).collection
+    Request PUT "/admin/collections/$collectionId" @{ displayName = $collection.displayName; slug = $collection.slug; status = 'Hidden'; expectedVersion = $collection.version } $admin 200 (WriteHeaders) | Out-Null
+    Request GET "/collections/details?id=$collectionId" $null $null 404 | Out-Null
+    $stillDiscounted = Request GET '/products?slug=demo-czapka' $null $null
+    $capPrice = $stillDiscounted.variants | Where-Object id -EQ $variant.id | ForEach-Object { $_.currentPrices[0] }
+    Check ($capPrice.amount -eq 25 -and $null -ne $capPrice.reduction) 'Membership removal and collection hiding preserve the frozen active promotion'
+    $collectionReplay = Request POST "/admin/promotions/$collectionPromoId/activate" $collectionActivation $admin 200 (WriteHeaders $collectionKey)
+    Check $collectionReplay.replayed 'Collection activation replays even after hiding and changing membership'
+    Request POST "/admin/promotions/$collectionPromoId/end" @{ expectedVersion = $collectionActive.promotion.version } $admin 200 (WriteHeaders) | Out-Null
+    $endedDetails = Request GET '/products?slug=demo-czapka' $null $null
+    $capPrice = $endedDetails.variants | Where-Object id -EQ $variant.id | ForEach-Object { $_.currentPrices[0] }
+    Check ($capPrice.amount -eq $baseAmount -and $null -eq $capPrice.reduction) 'Collection end restores prices of products removed from its current membership'
     Sql "DELETE FROM app.administrators WHERE user_id = '$($users[0].Id)';" | Out-Null
     Request GET '/admin/promotions' $null $admin 403 | Out-Null
     Check $true 'Administrator revocation takes effect with the same session'

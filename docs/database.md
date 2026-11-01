@@ -92,3 +92,15 @@ Zapisy katalogu/pricingu są serializowane wspólną blokadą transakcyjną `(20
 Próba migracji na bazie 5000 produktów zachowała 43 467 cen i MD5 ID/podstawy/ceny sprzedaży/dat: `4784df91e3799f9e12edb2a5aac3296c`. Powstało 16 082 początkowych niepełnych zdarzeń importu. Testy PostgreSQL obejmują ograniczenia, wycofanie częściowego zapisu, współbieżność i ponowny reset. Szczegóły reguł: [promocje](promotion-implementation-plan.md).
 
 Pełny zestaw migracji przetestowano również na nowej izolowanej bazie, następnie cofnięto i ponownie zastosowano migrację promocji bez danych. Po utworzeniu pochodnych cen migracja Down jawnie odmawia cofnięcia: wymagane jest zachowanie historii i kolejna migracja naprawcza, zamiast usuwania zapisów obniżek.
+
+## Kolekcje i promocje kolekcji — 01.11.2026
+
+Migracja `20261101124223_AddCollections` dodaje `app.collections`, `app.collection_products`, `app.collection_operations`. Pierwsza ma UUID, nazwę 120, unikalny slug 160, status Draft/Published/Hidden, wersję bigint i daty UTC. Powiązanie ma złożony PK kolekcja/produkt, datę i FK z RESTRICT. Dziennik ma UUID, autor/klucz, komendę, hash, wynik jsonb, kod i czas; unikalną parę autor/klucz oraz trigger niezmienności. Nowe tabele mają RLS i odebrany dostęp Data API.
+
+`promotions.product_id` staje się nullable; dodano `scope` z domyślnym `product` i opcjonalny `collection_id`. CHECK wymaga dokładnie jednego celu zgodnego ze scope. Dotychczasowe promocje, wersje, zapisane operacje i historia cen nie są przepisywane.
+
+Wersję kolekcji nadają wyłącznie triggery bazy: insert daje 1, update zawsze old+1 i zachowuje created_at. Każda zmiana przypisania aktualizuje kolekcję i jej wersję; może ona wzrosnąć wielokrotnie w jednej komendzie. Próba ustawienia ręcznej wersji w normalnym UPDATE nie omija tego mechanizmu. Publikację sprawdza odroczony constraint trigger na końcu transakcji: kolekcja musi mieć publiczny produkt. Późniejsze zmiany widoczności samych produktów nie zmieniają automatycznie statusu kolekcji. Operacje kolekcji i przypisań dołączają do wspólnej blokady `(20261031,3)` przez BEFORE STATEMENT. Nie tworzą zdarzeń oferty wariantu.
+
+Próba aktualizacji lokalnej bazy 5000 produktów zachowała 45 029 cen (MD5 wszystkich pól `9fcc274f91cfc8462ebb33553553180f`) i 41 operacji promocji (MD5 `2f22f3f276705e4e8f0c5bf3393dbf92`), w tym 13 zakończonych i jedną aktywną promocję produktu. Sprawdzono również pełny zestaw migracji od zera oraz Down/Up bez danych. Down odmawia po powstaniu operacji kolekcji lub promocji collection, aby zachować ich historię. Szczegóły reguł i testów: [kolekcje](collection-implementation-plan.md).
+
+Migrację kolekcji zastosowano 01.11.2026 również w skonfigurowanym Supabase; historia EF nie wskazuje oczekującej migracji `AddCollections`. Nie uruchamiano tam seedera ani testowego zapisu kolekcji. Katalog testowano na izolowanym PostgreSQL, rzeczywistą usługę Supabase wykorzystywano do Auth. Pełna instrukcja kontraktu: [api-contract.md](api-contract.md#kolekcje-i-promocje-kolekcji--01112026).

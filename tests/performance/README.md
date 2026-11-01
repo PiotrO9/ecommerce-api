@@ -50,3 +50,16 @@ dotnet run --configuration Release --project tests/performance/promotions/promot
 Pierwsze polecenie dodaje 50 unikalnych wariantów do `demo-czapka`, syntetyczną historię oraz wykonuje 3 rozgrzewki i 10 mierzonych cykli. Wypisuje p50/p95 i liczbę komend EF dla podglądu/startu/końca. Odmawia ponownego przygotowania tej samej bazy; odtwórz bazę demonstracyjną do kolejnej serii. `--activate-existing` uruchamia większy rabat po serii, do pomiaru odczytów HTTP podczas promocji. `--read-count` sprawdza liczbę komend katalogu i wyszukiwania. Żaden z tych trybów nie przyjmuje połączenia zdalnego ani nazwy bazy spoza `ecomm_perf*`.
 
 Harness zmienia dane syntetyczne. Nie kieruj go na projekt Supabase. Jeżeli API Release korzysta z tych samych plików wynikowych, zatrzymaj własną instancję pomiarową przed przebudową albo użyj osobnego katalogu artifacts.
+
+## Pomiar kolekcji
+
+Na odizolowanej lokalnej bazie `ecomm_perf*` z przygotowanymi 5000 produktami i migracją kolekcji:
+
+```powershell
+$env:ECOMMERCE_PERFORMANCE_DATABASE = 'Host=127.0.0.1;Port=15474;Database=ecomm_perf;Username=postgres'
+dotnet run --configuration Release --project tests/performance/collections/collections.csproj
+```
+
+Harness wybiera pierwszych 500 syntetycznych produktów `perf-produkt-*`, dodaje jawnie demonstracyjną historię oferty i regularne ceny, tworzy kolekcje 10/100/500 produktów i mierzy 3 rozgrzewki + 5 cykli podglądu/startu/końca. Pokazuje liczbę komend oraz pojedyncze oczekiwanie równoległej transakcji na blokadę zapisu. Odmawia pracy zdalnej, bazy spoza `ecomm_perf*` i ponownego przygotowania tej samej bazy.
+
+Zmienia wyłącznie dane syntetyczne: do nowej serii odtwórz bazę testową. Wyniki i ograniczenia próby są w [audycie](../../docs/catalog-performance-audit.md#kolekcje--pomiar-01112026). Do porównania HTTP przed/po użyj `benchmark.ps1 -Phase controlled` na tej samej bazie, **przed** uruchomieniem mutującego harnessu.

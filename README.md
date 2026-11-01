@@ -2,7 +2,7 @@
 
 ![.NET 10](https://img.shields.io/badge/.NET-10-007ACC?style=flat&labelColor=000000&logo=dotnet&logoColor=white)
 
-Projekt platformy e-commerce łączącej panel klienta z narzędziami do zarządzania sklepem. Docelowo ma obsługiwać ofertę, zamówienia oraz integracje z płatnościami i dostawami. To repozytorium zawiera backend w ASP.NET Core na .NET 10. Obecnie API obsługuje rejestrację i logowanie e-mail/hasło przez Supabase Auth oraz profil użytkownika zapisany w PostgreSQL przez EF Core. Funkcje sklepu są planowane.
+Projekt platformy e-commerce łączącej panel klienta z narzędziami do zarządzania sklepem. Docelowo ma obsługiwać ofertę, zamówienia oraz integracje z płatnościami i dostawami. To repozytorium zawiera backend w ASP.NET Core na .NET 10. API obsługuje rejestrację i logowanie e-mail/hasło przez Supabase Auth, profil użytkownika oraz katalog produktów z kategoriami, kolekcjami, wyszukiwaniem i cenami. Administrator może zarządzać cenami, kolekcjami oraz promocjami produktu i kolekcji z historią cen. Koszyk, zamówienia i płatności pozostają do wdrożenia.
 
 Frontend: [E-commerce Web](https://github.com/piotrowski-patryk/ecommerce-web).
 

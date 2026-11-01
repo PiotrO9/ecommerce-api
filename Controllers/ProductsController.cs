@@ -166,6 +166,25 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
         }
     }
 
+    [HttpGet("by-collection")]
+    public async Task<IActionResult> GetByCollection([FromQuery] Guid? collectionId, [FromQuery] string? slug,
+        [FromQuery] int? page, [FromQuery] int? pageSize, [FromQuery] string? q, [FromQuery] string? sort,
+        [FromQuery] decimal? minPrice, [FromQuery] decimal? maxPrice, CancellationToken cancellationToken)
+    {
+        if (!CollectionScope.ValidSelector(collectionId, slug, true) || HasAttributeFiltersInQuery() ||
+            InvalidPagination(page, pageSize) || InvalidSearch(q) || InvalidSort(sort) || InvalidPriceRange(minPrice, maxPrice))
+            return BadRequest(new { message = "Sprawdź selektor kolekcji, paginację i filtry. Cechy przekaż przez POST search." });
+        try
+        {
+            var collection = await CollectionScope.ResolveAsync(database, collectionId, slug, cancellationToken);
+            if (collection is null) return NotFound(new { message = "Nie znaleziono kolekcji." });
+            return Ok(await BuildListAsync(CollectionScope.Products(database, collection.Id), page, pageSize, q, [], sort,
+                minPrice, maxPrice, DateTime.UtcNow, cancellationToken));
+        }
+        catch (NpgsqlException) { return StatusCode(503, new { message = "Produkty są chwilowo niedostępne." }); }
+        catch (TimeoutException) { return StatusCode(503, new { message = "Produkty są chwilowo niedostępne." }); }
+    }
+
     [HttpPost("search")]
     public async Task<IActionResult> Search([FromBody] ProductSearchRequest? request,
         CancellationToken cancellationToken)
@@ -208,6 +227,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
             return BadRequest(new { message = "Podaj maksymalnie 10 cech i 30 wartości: niepusty code (do 100 znaków) i niepuste values (każda do 255 znaków)." });
         }
 
+        if (!CollectionScope.ValidSelector(request.CollectionId, request.CollectionSlug))
+            return BadRequest(new { message = "Podaj collectionId albo niepusty collectionSlug." });
+
         try
         {
             IQueryable<Product>? scope = null;
@@ -225,6 +247,12 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                     ids.Contains(link.CategoryId)));
             }
 
+            if (request.CollectionId.HasValue || request.CollectionSlug is not null)
+            {
+                var collection = await CollectionScope.ResolveAsync(database, request.CollectionId, request.CollectionSlug, cancellationToken);
+                if (collection is null) return NotFound(new { message = "Nie znaleziono kolekcji." });
+                scope = (scope ?? database.Products).Where(p => database.CollectionProducts.Any(l => l.CollectionId == collection.Id && l.ProductId == p.Id));
+            }
             var now = DateTime.UtcNow;
             var list = await BuildListAsync(scope, page, pageSize, request.Q, normalizedAttributes,
                 request.Sort, request.MinPrice, request.MaxPrice, now, cancellationToken);
@@ -244,13 +272,16 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
     [HttpGet("filter-options")]
     public async Task<IActionResult> GetFilterOptions([FromQuery] Guid? categoryId,
-        [FromQuery] string? slug, CancellationToken cancellationToken)
+        [FromQuery] string? slug, CancellationToken cancellationToken,
+        [FromQuery] Guid? collectionId = null, [FromQuery] string? collectionSlug = null)
     {
         if (categoryId.HasValue && slug is not null ||
             slug is not null && string.IsNullOrWhiteSpace(slug))
         {
             return BadRequest(new { message = "Podaj categoryId albo slug, nie oba naraz; slug nie może być pusty." });
         }
+        if (!CollectionScope.ValidSelector(collectionId, collectionSlug))
+            return BadRequest(new { message = "Podaj collectionId albo niepusty collectionSlug." });
 
         try
         {
@@ -278,6 +309,13 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                 var ids = branchIds;
                 links = links.Where(link => link.Variant.Product.ProductCategories.Any(
                     category => ids.Contains(category.CategoryId)));
+            }
+
+            if (collectionId.HasValue || collectionSlug is not null)
+            {
+                var collection = await CollectionScope.ResolveAsync(database, collectionId, collectionSlug, cancellationToken);
+                if (collection is null) return NotFound(new { message = "Nie znaleziono kolekcji." });
+                links = links.Where(l => database.CollectionProducts.Any(c => c.CollectionId == collection.Id && c.ProductId == l.Variant.ProductId));
             }
 
             var pairs = await links.Select(link => new

@@ -18,6 +18,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/inventory-model.md` zawiera wstępne ustalenie stanu magazynowego per wariant i otwarte reguły rezerwacji.
 - `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
 - `docs/promotion-implementation-plan.md` opisuje wdrożone promocje produktu, okresy oferowania, wcześniejszą cenę, wynik odbioru i granice pierwszej wersji.
+- `docs/collection-implementation-plan.md` opisuje wdrożone kolekcje i promocje kolekcji, model, endpointy, zgodność dawnych ponowień, etapy K1–K6 i wyniki odbioru.
 - `docs/administrator-access.md` opisuje uprawnienia administratora, nadanie pierwszego dostępu i administracyjne endpointy cen.
 - `docs/demo-seed.md` opisuje ręcznie uruchamiany, developerski seeder katalogu i jego zabezpieczenia.
 - `docs/seeder-maintenance.md` określa, jak rozbudowywać seeder razem ze zmianami modelu bazy.

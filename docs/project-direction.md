@@ -2,7 +2,7 @@
 
 Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postęp backendowej części projektu e-commerce. Jest to plan kontrolny, a nie opis istniejących endpointów. Faktyczny kontrakt API jest w [api-contract.md](api-contract.md), obecna architektura w [architecture.md](architecture.md), a zasady bazy w [database.md](database.md).
 
-Źródło wymagań: plan produktu przekazany przez właściciela projektu 20 października 2026 r. Podział na moduły i kolejność poniżej są propozycją organizacji prac dla dwuosobowego zespołu. Stan kodu sprawdzono 22 października 2026 r.
+Źródło wymagań: plan produktu przekazany przez właściciela projektu 20 października 2026 r. Podział na moduły i kolejność poniżej są propozycją organizacji prac dla dwuosobowego zespołu. Status cen, promocji i uprawnień zaktualizowano 1 listopada 2026 r.; szczegółowe wyniki weryfikacji są w [testing.md](testing.md).
 
 ## Jak używać tego pliku
 
@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują obecnie dwa endpointy resetu hasła.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają proste wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu. Działa administracyjna zmiana zwykłych cen PLN i kontrola uprawnienia z app.administrators. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen ma testy niezmienności i konkurencji na PostgreSQL. Nie ma koszyka, zamówień, promocji, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma koszyka, zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -37,9 +37,9 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
 | **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | W toku: API listy i szczegółów gotowe; brak integracji z frontendem |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | W toku |
-| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | W toku: zapis zwykłych cen PLN, historia i endpointy administratora gotowe; powiązanie z promocjami przed nami |
-| **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | Nie rozpoczęto |
-| **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Nie rozpoczęto |
+| **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | Gotowe w kodzie dla PLN: zwykłe ceny, start/koniec promocji i niezmienna historia; migracje w Supabase |
+| **3.2 Reguły promocji** | Działają ustalone zniżki kwotowe i procentowe w uzgodnionym zakresie | W toku: promocje produktu i kolekcji wdrożone; zakres całego katalogu pozostaje do wdrożenia |
+| **3.3 Dane wcześniejszej ceny** | API zwraca dane do pokazania najniższej ceny z 30 dni przed obniżką | Gotowe w kodzie dla zwykłych towarów oraz promocji produktu i kolekcji; znana krótka oferta i blokada niepełnej historii |
 | **4.1 Koszyk gościa** | Gość dodaje, zmienia i usuwa pozycje | Nie rozpoczęto |
 | **4.2 Koszyk konta i przejęcie** | Koszyk gościa trafia na właściwe konto po uwierzytelnieniu | Nie rozpoczęto |
 | **4.3 Ulubione** | Gość i klient mogą zapisać produkty zgodnie z ustaloną zasadą przejęcia | Nie rozpoczęto |
@@ -50,7 +50,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **6.1 Tpay sandbox** | Testowa płatność bezpiecznie aktualizuje zamówienie | Nie rozpoczęto |
 | **6.2 Symulowana dostawa** | Zamówienie przechodzi przez ustalone statusy kurierskie | Nie rozpoczęto |
 | **6.3 E-maile transakcyjne** | Uzgodnione zdarzenia wysyłają odpowiednie wiadomości | Nie rozpoczęto |
-| **7.1 Uprawnienia administratora** | Zwykły klient nie ma dostępu do operacji zarządzania | Gotowe w kodzie: kontrola sesji i tabeli administrators dla cen; testy lokalne z atrapą Auth |
+| **7.1 Uprawnienia administratora** | Zwykły klient nie ma dostępu do operacji zarządzania | Gotowe dla cen i promocji: kontrola sesji/tabeli administrators; odbiór HTTPS na dwóch prawdziwych kontach Auth z lokalną bazą testową |
 | **7.2 Zarządzanie sklepem** | Panel obsługuje ofertę, ceny, stany i zamówienia | Nie rozpoczęto |
 | **7.3 Pliki produktów** | Zdjęcia są obsługiwane przez Supabase Storage z właściwym dostępem | Nie rozpoczęto |
 | **8.1 Zdrowie, logi i błędy** | Działa `/healthz`, logi JSON i raportowanie do GlitchTip | Nie rozpoczęto |
@@ -62,7 +62,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 
 Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 → 7.1 → 3.1 → 2.5 → 2.6 → 2.7**. Wstępne ustalenie pól produktu w **2.1** jest zakończone; implementacja pozostaje w **2.2**. Numery 7.1 i 3.1 pojawiają się przed administracyjnym zapisem oferty, bo potrzebne są uprawnienia administratora i historia cen. Próbę **0.4** wykonajcie po ustaleniu środowiska z **1.3**. Etapy **8.1** i potrzebną część **8.2** warto włączyć przed wspólnym środowiskiem testowym. Pozostałe zależności i szczegółowe prace opisują moduły niżej.
 
-**Długofalowa ścieżka:** przetestować ograniczenia zastosowanej migracji na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie w PLN w odczycie katalogu jest wdrożone; granice weryfikacji opisuje [model cen](pricing-model.md#odczyt-cen-w-katalogu). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Później pozostają koszyk (4.1–4.2), zamówienie z pozycjami (5.1), promocje (3.2) oraz dane dostawy i płatności (6).
+**Długofalowa ścieżka:** przetestować pozostałe ograniczenia katalogu na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie PLN oraz promocje jednego produktu są wdrożone; granice weryfikacji opisują [model cen](pricing-model.md) i [plan promocji](promotion-implementation-plan.md). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Pozostają m.in. promocje całego katalogu (3.2), koszyk (4.1–4.2), zamówienie z pozycjami (5.1) oraz dane dostawy i płatności (6).
 
 ### Kolejne ulepszenia odczytu katalogu
 
@@ -156,6 +156,8 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 
 Pierwszy zakres 3.2–3.3 jest wdrożony: [promocje jednego produktu](promotion-implementation-plan.md), zapisane odniesienie wcześniejszej ceny i publiczne odczyty. Migracja w Supabase, 116 testów zaliczonych. Odbiór 01.11.2026: dodatkowo 23 sprawdzenia HTTPS z dwoma prawdziwymi kontami Supabase Auth i izolowanym lokalnym katalogiem; bez zmian w danych sklepu w Supabase.
 
+Rozszerzenie 3.2 wdrożono według [planu kolekcji i promocji kolekcji](collection-implementation-plan.md); etapy K1–K6 są zakończone i odznaczone. Są administracja kolekcji, publiczny odczyt, filtry i promocja kolekcji z utrwalonym zakresem. Odbiór obejmuje 132 testy i 32 sprawdzenia HTTPS. Promocja całego katalogu pozostaje osobnym rozszerzeniem.
+
 - [x] Ustalić, że każdy wariant może mieć własną cenę z walutą domyślnie `PLN`. Ustalenia są w [modelu cen](pricing-model.md).
 - [x] Ustalić, że wariant bez ceny może być szkicem, ale nie może zostać opublikowany ani sprzedany.
 - [x] Ustalić statusy `Draft`, `Published`, `Hidden` produktu i wariantu oraz nadrzędność statusu produktu przy ukrywaniu całej oferty.
@@ -167,7 +169,8 @@ Pierwszy zakres 3.2–3.3 jest wdrożony: [promocje jednego produktu](promotion-
   `VariantPriceService` dopisuje zwykłą cenę PLN, kontroluje wersję i ponowienia. `PromotionService` atomowo zapisuje start/koniec promocji, zakres i wcześniejsze odniesienie. Historia jest niezmienna; triggery rejestrują ofertę. Migracje zastosowane w Supabase. Szczegóły w [modelu cen](pricing-model.md).
 - [ ] Dodać promocje procentowe i kwotowe dla pojedynczych produktów, kolekcji albo całej oferty, zgodnie z uzgodnionymi zasadami pierwszeństwa.
   - [x] Pojedynczy produkt, rabat procentowy/kwotowy, jeden aktywny udział wariantu, szkic/podgląd/start/koniec.
-  - [ ] Kolekcje i zakres całego katalogu, harmonogramy, rozbudowane zasady łączenia.
+  - [x] Kolekcje: model, administracja, odczyt i promocje z wersją i utrwalonym zakresem (01.11.2026).
+  - [ ] Zakres całego katalogu, harmonogramy, rozbudowane zasady łączenia.
 - [x] Udostępnić frontendowi cenę bieżącą oraz dane do pokazania najniższej ceny z 30 dni przed obniżką wszędzie tam, gdzie jest prezentowana promocja.
   Obejmuje obecne odczyty katalogu, kategorii, wyszukiwania i szczegółów zwykłych towarów. Znana krótka oferta ma osobną podstawę odniesienia; niepełna historia blokuje promocję. Szczególne rodzaje towarów pozostają poza pierwszą wersją.
 - [x] Zweryfikować interpretację wymogu Omnibus dla wariantów i następujących po sobie zmian cen przed wdrożeniem reguł do kodu.

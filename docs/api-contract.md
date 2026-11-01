@@ -43,7 +43,7 @@ Błędy: `401` bez sesji; `403` bez uprawnienia lub wymaganego nagłówka CSRF; 
 | `GET /api/v1/web/profile/me` | Ciasteczko sesji | `200`, `userId`, `firstName`, `lastName` | `401` bez ważnej sesji, `404` przed pierwszym zapisem profilu, `503` gdy usługa lub baza jest niedostępna |
 | `PUT /api/v1/web/profile/me` | Ciasteczko sesji, `X-Requested-With: XMLHttpRequest`, JSON `firstName`, `lastName` | `200`, `userId`, `firstName`, `lastName` | `400` dla nieprawidłowych danych, `401` bez ważnej sesji, `403` bez wymaganego nagłówka, `503` gdy usługa lub baza jest niedostępna |
 
-Endpoint `POST /api/v1/web/seed` jest dostępny tylko w środowisku `Development` po ustawieniu `DemoSeed:Enabled=true` i klucza `DemoSeed:Key`. Wymaga nagłówka `X-Demo-Seed-Key`; poprawne wywołanie najpierw czyści wszystkie rekordy z czternastu tabel katalogu, promocji i oferty, stanów i historii cen, także spoza seedera, a następnie tworzy nowy zestaw. Nie dotyka kont, profili ani tabel `auth`. Reset i seed są jedną transakcją. Odpowiedź `200` zawiera `added` oraz `created` z licznikami nowych rekordów; błędny klucz daje `404`. Opcjonalne body JSON przyjmuje niezależne pola `categories`, `products`, `variants` z poziomami `low`, `med`/`medium`, `high` (domyślnie `medium` dla kategorii i produktów oraz `low` dla wariantów); każdy poziom losuje cel z opisanego w dokumentacji zakresu, a niepoprawny poziom daje `400`. Szczegóły zakresów i uruchomienia są w [demo-seed.md](demo-seed.md).
+Endpoint `POST /api/v1/web/seed` jest dostępny tylko w środowisku `Development` po ustawieniu `DemoSeed:Enabled=true` i klucza `DemoSeed:Key`. Wymaga nagłówka `X-Demo-Seed-Key`; poprawne wywołanie najpierw czyści wszystkie rekordy z siedemnastu tabel katalogu, promocji i oferty, stanów i historii cen, także spoza seedera, a następnie tworzy nowy zestaw. Nie dotyka kont, profili ani tabel `auth`. Reset i seed są jedną transakcją. Odpowiedź `200` zawiera `added` oraz `created` z licznikami nowych rekordów; błędny klucz daje `404`. Opcjonalne body JSON przyjmuje niezależne pola `categories`, `products`, `variants` z poziomami `low`, `med`/`medium`, `high` (domyślnie `medium` dla kategorii i produktów oraz `low` dla wariantów); każdy poziom losuje cel z opisanego w dokumentacji zakresu, a niepoprawny poziom daje `400`. Szczegóły zakresów i uruchomienia są w [demo-seed.md](demo-seed.md).
 
 `GET /api/v1/web/categories` bez `rootId` zwraca wszystkie kategorie główne z potomkami; pusty katalog daje `[]`. Z `rootId` odpowiedź zawiera jedno drzewo, którego korzeniem jest wskazana kategoria, bez jej przodków i sąsiednich gałęzi. Każdy węzeł ma `id`, `parentId`, `displayName`, `slug` i tablicę `children`. Rodzeństwo jest obecnie sortowane alfabetycznie po `displayName`, z `id` jako rozstrzygnięciem remisu. Ten endpoint zwraca wyłącznie kategorie; produkty są dostępne przez `GET /api/v1/web/products/by-category`.
 
@@ -250,3 +250,99 @@ Oczekuj `200`, `promotion.status=Active`; zapamiętaj zwrócone `promotion.versi
 ```
 
 Reguła może wynosić 20% od 100 PLN, ale zniżka względem wcześniejszej ceny 90 PLN to 11,11%. UI komunikujące procent korzysta z `savingPercent`. `basis=SinceFirstOffer` oznacza znany krótszy okres. Przy tej samej obniżce `priorAmount` nie przesuwa się codziennie. Wszystkie kwoty na kafelku pochodzą z jednego najtańszego pasującego wariantu per waluta; remis rozstrzyga UUID. `reduction=null` oznacza brak zweryfikowanego zdarzenia obniżki, również dla starych rabatów demo — UI nie powinno dopowiadać wtedy oznaczenia promocji.
+
+## Kolekcje i promocje kolekcji — 01.11.2026
+
+Kolekcja jest niezależną od kategorii, ręczną grupą produktów. Wiele kolekcji może zawierać ten sam produkt. Wdrożone reguły i scenariusze są w [collection-implementation-plan.md](collection-implementation-plan.md).
+
+Publiczne trasy:
+
+| Endpoint | Wejście i wynik |
+| --- | --- |
+| `GET /api/v1/web/collections` | `page=1`, `pageSize=20` (1–100); `{items,page,pageSize,totalItems,totalPages}` tylko dla Published |
+| `GET /api/v1/web/collections/details` | Dokładnie jedno `id` albo `slug`; metadane jednej Published, w przeciwnym razie `404` |
+| `GET /api/v1/web/products/by-collection` | Dokładnie jedno `collectionId` albo `slug`; `q`, `sort`, `minPrice`, `maxPrice`, opcjonalne `page`/`pageSize` i dotychczasowy `ProductListResponse` z `items`/`pagination` |
+| `POST /api/v1/web/products/search` | Opcjonalne `collectionId` albo `collectionSlug`; dotychczasowe cechy, cena, ranking, stronicowanie i `availableFilters` działają w wybranej kolekcji |
+| `GET /api/v1/web/products/filter-options` | Opcjonalne `collectionId` albo `collectionSlug`, niezależne od istniejącego selektora kategorii `categoryId`/`slug` |
+
+Jednoczesna kolekcja i kategoria to przecięcie zakresów; kategoria zachowuje poddrzewo. Ukrycie kolekcji nie ukrywa produktu w katalogu i nie kończy promocji. Opublikowana kolekcja, której produkty później wycofano, może pozostać widoczna z pustą listą.
+
+Metadane kolekcji: `id`, `displayName`, `slug`, `status`, `version`, `createdAt`, `updatedAt`, `productCount`. Publiczny `productCount` liczy tylko produkty widoczne; administracyjny wszystkie przypisania. `displayName` po trim 1–120, slug po trim/lowercase 1–160, globalnie unikalny, format jak slug produktu. Zmiana nazwy nie zmienia slugu. Pierwsza wersja nie generuje go automatycznie i nie ma fizycznego usuwania kolekcji.
+
+Administracyjne trasy pod `/api/v1/web/admin`:
+
+| Endpoint | Body / wynik |
+| --- | --- |
+| `POST /collections` | `{displayName,slug}`, tworzy Draft; `201` lub `200` ponowienie, `{replayed,collection}` |
+| `GET /collections` | `page`, `pageSize`, opcjonalne `status=Draft/Published/Hidden`; lista z paginacją |
+| `GET /collections/{id}` | Metadane i wszystkie przypisania liczone w `productCount` |
+| `PUT /collections/{id}` | `{displayName,slug,status,expectedVersion}`; `{replayed,collection}` |
+| `GET /collections/{id}/products` | `page`/`pageSize`; `{collectionVersion,productIds,items,page,pageSize,totalItems,totalPages}`; `productIds` to pełny minimalny zestaw, `items` są stronicowane i zawierają też produkty ukryte |
+| `PUT /collections/{id}/products` | `{expectedVersion,productIds:[...]}` zastępuje cały skład; `{replayed,collection}` |
+
+Każda trasa administracyjna sprawdza bieżącą sesję i `app.administrators`. Mutacje wymagają `X-Requested-With: XMLHttpRequest` i UUID `Idempotency-Key`; limit body 1 MiB, zestaw do 10 000 unikalnych, niepustych ID. `expectedVersion` pobiera się z ostatniej odpowiedzi. Wersja jest nadawana przez bazę i może wzrosnąć o więcej niż 1, gdy zmieniono wiele przypisań. Ponowienie zapisanej komendy nie zmienia wersji. Klucze kolekcji mają oddzielną przestrzeń od cen i promocji. Nieznane pola są odrzucane. Listy domyślnie 1/20, maksymalny rozmiar 100.
+
+Publikacja i zapis opublikowanego składu wymagają publicznego produktu. Szkic/ukryta kolekcja może być pusta i zawierać produkty Draft/Hidden. Operacje nie zmieniają statusów produktów. Błędy: `400` dane/selektory/klucz, `401`/`403` sesja/uprawnienia/CSRF, `404` kolekcja lub produkt, `409` `collection_version_conflict`, `slug_conflict`, `collection_has_no_public_products`, `idempotency_key_conflict`, `503` niedostępność. Błędy automatyczne MVC mogą mieć ProblemDetails, a przekroczenie limitu body `413`.
+
+### Rozszerzony kontrakt promocji
+
+Te same trasy `/admin/promotions` obsługują `scope=product/collection`. Pominięty scope oznacza product, więc stare body z `productId` działa nadal. Dla kolekcji wymagane jest `collectionId`, a `productId` nie może być podane; dla produktu odwrotnie. Listę można filtrować `scope` i `collectionId`; dotychczasowy filtr `productId` oznacza bezpośredni cel promocji produktu.
+
+Odpowiedź `promotion` dodaje `scope`, `collectionId`; dla kolekcji `productId=null`. Stare zapisane odpowiedzi są odtwarzane bez przepisywania dziennika. Podgląd dodaje `collectionVersion`, `excluded` (`productId`, opcjonalny `variantId`, `reason`); element wariantu ma również `productId`/`productName`. Ukryte produkty/warianty są diagnozowane jako wykluczone. Błąd ceny, odniesienia lub konflikt aktywnego udziału któregokolwiek objętego wariantu blokuje całą aktywację.
+
+Dla kolekcji aktywacja wymaga `{expectedVersion,expectedCollectionVersion,variants:[...]}`. Limit objętych wariantów: 3000; podgląd większej kolekcji ma `canActivate=false`, `errors` z `variant_limit_exceeded`, bez ładowania historii cen całego zakresu. Body aktywacji ma limit 1 MiB. Zmiana kolekcji po podglądzie daje `409 collection_version_conflict`. Pełny skład/wersje cen są nadal sprawdzane. Zakończenie wymaga tylko wersji promocji, działa na utrwalonych udziałach także po zmianie składu/ukryciu kolekcji i nie ma limitu 3000 względem zakończenia już zapisanej akcji. Wyniki końca/startu są ponawialne tak jak dla produktu.
+
+### Przykład w Postmanie
+
+`{{host}}` oznacza bazę wraz z `/api/v1/web`. Zaloguj administratora; każda nowa mutacja ma nowy UUID `Idempotency-Key` i nagłówek CSRF. Do ponowienia zachowaj rzeczywiście wysłany UUID (dynamiczne `{{$guid}}` generuje inny przy kolejnym wysłaniu).
+
+1. `POST {{host}}/admin/collections`:
+
+```json
+{"displayName":"Letnia kolekcja","slug":"letnia-kolekcja"}
+```
+
+Zapisz `collection.id` i `collection.version`. Pobierz ID istniejących produktów, np. `demo-czapka` i `demo-produkt-11` z developerskiego seedera.
+
+2. `PUT {{host}}/admin/collections/{{collectionId}}/products`:
+
+```json
+{"expectedVersion":{{collectionVersion}},"productIds":["{{productIdA}}","{{productIdB}}"]}
+```
+
+3. Zaktualizuj `collectionVersion` z odpowiedzi i opublikuj przez `PUT {{host}}/admin/collections/{{collectionId}}`:
+
+```json
+{"displayName":"Letnia kolekcja","slug":"letnia-kolekcja","status":"Published","expectedVersion":{{collectionVersion}}}
+```
+
+4. `POST {{host}}/admin/promotions`:
+
+```json
+{"scope":"collection","collectionId":"{{collectionId}}","name":"Letnia kolekcja -20%","discountType":"percentage","discountValue":20}
+```
+
+5. `POST {{host}}/admin/promotions/{{promotionId}}/preview?pageSize=20`. Przy `canActivate=true` zapisz pola:
+
+```javascript
+const p = pm.response.json();
+pm.environment.set("promotionVersion", p.version);
+pm.environment.set("collectionVersion", p.collectionVersion);
+pm.environment.set("expectedPrices", JSON.stringify(p.expectedPrices));
+```
+
+6. `POST {{host}}/admin/promotions/{{promotionId}}/activate`:
+
+```json
+{"expectedVersion":{{promotionVersion}},"expectedCollectionVersion":{{collectionVersion}},"variants":{{expectedPrices}}}
+```
+
+7. Sprawdź `GET {{host}}/collections/details?slug=letnia-kolekcja`, `GET {{host}}/products/by-collection?slug=letnia-kolekcja&page=1&pageSize=20` i POST wyszukiwania:
+
+```json
+{"collectionSlug":"letnia-kolekcja","minPrice":0,"maxPrice":100,"sort":"price-asc","page":1,"pageSize":20}
+```
+
+Cechy nadal dodaje się dynamicznymi parami `attributes:[{code,values}]`. Można równocześnie dodać selektor kategorii.
+
+8. `POST {{host}}/admin/promotions/{{promotionId}}/end`, body `{"expectedVersion":{{activePromotionVersion}}}`. Wersja pochodzi z odpowiedzi aktywacji, a nie kolekcji. Produkt usunięty w międzyczasie z kolekcji też odzyska cenę podstawową. Szczegóły publicznego `reduction` pozostają takie jak dla promocji produktu.

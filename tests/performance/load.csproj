@@ -7,6 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup><Compile Remove="promotions/**" /></ItemGroup>
+  <ItemGroup><Compile Remove="promotions/**;collections/**" /></ItemGroup>
 
 </Project>
