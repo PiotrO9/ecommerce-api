@@ -29,6 +29,25 @@ Wymaga zgodnego `ECOMMERCE_SMOKE_SEED_KEY`. Przed resetem odczytuje przez API lo
 
 Granica dowodu: prawdziwe Auth i transport HTTPS z lokalną bazą aplikacji, nie zdalny katalog Supabase ani frontend. Sprawdzony lokalny frontend `D:/CODE/E-comm/Frontend/ecommerce-web-front` ma stronę główną i design system, bez ekranów i integracji koszyka/ulubionych. Nie ma więc jeszcze ścieżki UI do odbioru; domeny, CORS/SameSite przyszłego połączenia i migracja zdalnej bazy pozostają otwarte.
 
+## Zarządzanie ofertą — odbiór lokalny 01.11.2026
+
+Końcowy wynik całego rozwiązania: **162/162 testy, bez pominięć; build 0 błędów i ostrzeżeń**. Testy uruchomiono na własnym PostgreSQL 17, niezależnie od procesu i bazy drugiego agenta. Skrypt `tests/performance/catalog-management/verify-migrations.ps1` potwierdził aktualizację istniejącego schematu, odrzucenie niezgodnych danych, identyczny skrót historii cen, zachowanie nieznanej daty publikacji także po edycji metadanych oraz Down/Up migracji publikacji.
+
+`CatalogManagementInputTests` sprawdza slugi, NFC/trim bez lowercase, adresy zdjęć i odrzucanie pól serwerowych. `CatalogManagementPostgresTests` sprawdza tworzenie grafu, wersje i ich propagację, niezależność ceny/magazynu, współbieżne edycje i SKU, duplikaty konfiguracji, słownik, cykle kategorii, audyt i ponowienia także po usunięciu kategorii. Osobno potwierdza rollback produktu i dziennika przy odroczonym błędzie commit oraz brak uprawnień ról Data API do dziennika.
+
+`CatalogManagementHttpTests` przechodzi przez rzeczywisty routing/MVC/JSON i cookies aplikacji, ze stubem zewnętrznego Supabase Auth oraz prawdziwą tabelą administratorów w lokalnym PostgreSQL. Sprawdza brak dostępu, CSRF, odwołanie administratora, `no-store` także dla automatycznego `400`, DELETE z wersją query i pełny proces publikacji. Łączy ofertę z koszykiem i ulubionymi: ukrycie pozostawia pozycje, ale odczyt nie ujawnia danych niedostępnego wariantu.
+
+Nowy zestaw to 20 przypadków; używa istniejącej kolekcji `Postgres catalog` i lokalnej bazy `ecomm_test_*` po obu migracjach oferty. Dawne scenariusze USD/przyszłej ceny zachowują dane historyczne przez testowy `LegacyCatalogFixture`; jego uprzywilejowane wyłączenie nowych ograniczeń istnieje wyłącznie w fixture. API nie ma przełącznika obchodzącego publikację. Test koszyka ukrywa najpierw produkt, zanim ukryje jego jedyny wariant.
+
+Przy równoległej pracy agentów budować do osobnego katalogu, aby nie blokować plików DLL drugiego testhosta:
+
+```powershell
+dotnet build E-commerce-backend.slnx --artifacts-path "$env:TEMP/ecomm-offer-artifacts"
+dotnet test E-commerce-backend.slnx --artifacts-path "$env:TEMP/ecomm-offer-artifacts"
+```
+
+Wymagane `ECOMMERCE_TEST_DATABASE` jak w dalszych instrukcjach. Weryfikacja migracji: nowa baza od zera przeszła, a [raport przed wdrożeniem](../scripts/catalog-preflight.sql) nie wykazał problemów na syntetycznym zbiorze 5001 produktów. Odczytowy raport skonfigurowanego Supabase dał 0 blokad i 0 ostrzeżeń; zastosowanie obu migracji pozostaje osobnym krokiem. Wynik pomiaru jest w [audycie](catalog-performance-audit.md#administracja-ofertą--pomiar-01112026).
+
 ## Koszyk i ulubione — weryfikacja 01.11.2026
 
 Najnowszy odbiór bez atrapy Supabase Auth opisuje [sekcja HTTPS](#koszyk--odbiór-https-z-rzeczywistym-auth-01112026). Poniższe testy xUnit nadal używają atrap zewnętrznych odpowiedzi Auth.

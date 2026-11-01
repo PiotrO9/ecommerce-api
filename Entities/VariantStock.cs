@@ -3,6 +3,7 @@ namespace E_commerce_backend.Entities;
 public sealed class VariantStock
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public long Version { get; set; } = 1;
     public Guid VariantId { get; set; }
     public ProductVariant Variant { get; set; } = null!;
     public int QuantityOnHand { get; set; }

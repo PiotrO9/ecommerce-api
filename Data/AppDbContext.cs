@@ -20,6 +20,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<VariantOfferEvent> VariantOfferEvents => Set<VariantOfferEvent>();
     public DbSet<PromotionOperation> PromotionOperations => Set<PromotionOperation>();
     public DbSet<Product> Products => Set<Product>();
+    public DbSet<CatalogOperation> CatalogOperations => Set<CatalogOperation>();
     public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
     public DbSet<AttributeKey> AttributeKeys => Set<AttributeKey>();
     public DbSet<AttributePair> AttributePairs => Set<AttributePair>();
@@ -66,6 +67,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         });
 
         CatalogModelConfiguration.Configure(modelBuilder);
+        CatalogManagementConfiguration.Configure(modelBuilder);
         PromotionModelConfiguration.Configure(modelBuilder);
         CollectionModelConfiguration.Configure(modelBuilder);
         ShoppingModelConfiguration.Configure(modelBuilder);

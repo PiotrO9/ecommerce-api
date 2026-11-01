@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują reset hasła oraz zapisy koszyka, ulubionych i inicjalizację gościa.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Brakuje pozostałych operacji zapisu katalogu i pełnych testów ograniczeń katalogu; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Backend zarządzania ofertą obejmuje tworzenie, edycję, publikację i ukrywanie produktów/wariantów, kategorie, cechy oraz magazyn, z testami PostgreSQL; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -31,10 +31,10 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **1.2 Kontrakt pierwszego widoku** | Frontend zna pola listy i szczegółów produktu oraz format błędów | Nie rozpoczęto |
 | **1.3 Hostowanie i sesja** | Uzgodnione adresy, cookies, CORS, CSRF i zasady pracy za proxy | Nie rozpoczęto |
 | **2.1 Wstępny model produktu** | Uzgodniona lista pól produktu zapisana w tym dokumencie | Gotowe — ustalone z użytkownikiem 21.10.2026 |
-| **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
-| **2.3 Model wariantu** | Relacja z produktem, cechy, encje i migracja | W toku: migracja zastosowana; brak testów ograniczeń w bazie |
-| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | W toku: migracja, odczyt drzewa i produktów z poddrzewa; brak operacji zapisu |
-| **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Nie rozpoczęto |
+| **2.2 Implementacja modelu produktu** | Encja produktu, mapowanie EF Core, migracja i testy | Gotowe w kodzie: graf, wersje, publikacja i testy PostgreSQL; nowe migracje oferty oczekują na Supabase |
+| **2.3 Model wariantu** | Relacja z produktem, cechy, encje i migracja | Gotowe w kodzie: administracja, unikalność konfiguracji, normalizacja i testy PostgreSQL |
+| **2.4 Model kategorii** | Drzewo, przypisanie produktów, encje i migracja | Administracja i testy gotowe; pozostały decyzje o adresach/przekierowaniach i ręcznej kolejności widoku |
+| **2.5 Wprowadzanie oferty** | Administrator może dodać i zmienić produkt oraz wariant | Gotowe w kodzie, odbiór lokalny; migracje oferty i odbiór środowiskowy pozostają otwarte |
 | **2.6 Odczyt katalogu** | Klient widzi listę i szczegóły produktu | W toku: API listy i szczegółów gotowe; brak integracji z frontendem |
 | **2.7 Wyszukiwanie** | Klient wyszukuje i filtruje ofertę przez API | W toku |
 | **3.1 Cena i historia** | Każda zmiana ceny jest zapisywana do historii | Gotowe w kodzie dla PLN: zwykłe ceny, start/koniec promocji i niezmienna historia; migracje w Supabase |
@@ -51,7 +51,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **6.2 Symulowana dostawa** | Zamówienie przechodzi przez ustalone statusy kurierskie | Nie rozpoczęto |
 | **6.3 E-maile transakcyjne** | Uzgodnione zdarzenia wysyłają odpowiednie wiadomości | Nie rozpoczęto |
 | **7.1 Uprawnienia administratora** | Zwykły klient nie ma dostępu do operacji zarządzania | Gotowe dla cen i promocji: kontrola sesji/tabeli administrators; odbiór HTTPS na dwóch prawdziwych kontach Auth z lokalną bazą testową |
-| **7.2 Zarządzanie sklepem** | Panel obsługuje ofertę, ceny, stany i zamówienia | Nie rozpoczęto |
+| **7.2 Zarządzanie sklepem** | Panel obsługuje ofertę, ceny, stany i zamówienia | Backend oferty, cen, promocji i stanów gotowy; zamówienia i panel pozostają do wdrożenia |
 | **7.3 Pliki produktów** | Zdjęcia są obsługiwane przez Supabase Storage z właściwym dostępem | Nie rozpoczęto |
 | **8.1 Zdrowie, logi i błędy** | Działa `/healthz`, logi JSON i raportowanie do GlitchTip | Nie rozpoczęto |
 | **8.2 Limity żądań** | Uzgodnione operacje mają limity i czytelne odpowiedzi dla frontendu | W toku: reset hasła oraz zapisy koszyka, ulubionych i inicjalizacja gościa |
@@ -106,8 +106,8 @@ Lista propozycji zaakceptowana do zachowania przez właściciela projektu 28.10.
 - [x] Dobrać limity tekstów, format i unikalność `Slug` oraz sposób nadawania `Id`; zapisać wybory w [modelu katalogu](catalog-model.md).
 - [x] Dodać encję produktu, mapowanie EF Core i migrację wyłącznie w schemacie aplikacji; sprawdzić wygenerowany SQL i zasady dostępu.
 - [x] Zastosować migrację katalogu w Supabase; potwierdzone historią EF 22 października 2026 r.
-- [ ] Sprawdzić ograniczenia migracji na PostgreSQL, w tym minimum jednego wariantu i zapisy współbieżne.
-- [ ] Ustalić i wdrożyć przejścia `Status` oraz znaczenie `PublishedAt` przy ponownej publikacji.
+- [x] Sprawdzić ograniczenia migracji na PostgreSQL, w tym minimum jednego wariantu i zapisy współbieżne.
+- [x] Ustalić i wdrożyć przejścia `Status` oraz znaczenie `PublishedAt` przy ponownej publikacji; zachowanie pierwszej znanej daty.
 
 Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pierwszego wariantu (2.3), ponieważ zapisany produkt ma zawsze mieć co najmniej jeden wariant. Samo dodanie tabeli produktu w 2.2 nie oznacza jeszcze gotowej operacji tworzenia produktu.
 
@@ -115,7 +115,7 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 
 - [x] Uzgodnić podstawowe pola, relację z produktem, wspólne klucze i pary cech, zasady SKU i unikalności konfiguracji. Decyzje i schemat relacji są w [modelu katalogu](catalog-model.md).
 - [x] Przyjąć tekstowe wartości cech i tablicę `text[]` dla zdjęć; dodać encje, relacje, mapowanie EF Core, migrację i testy metadanych.
-- [ ] Sprawdzić w PostgreSQL unikalność zestawów cech i równoczesne zapisy; doprecyzować normalizację wartości cech.
+- [x] Sprawdzić w PostgreSQL unikalność zestawów cech i równoczesne zapisy; wdrożyć NFC i trim wartości bez lowercase.
 
 ### 2.4 Model kategorii
 
@@ -130,15 +130,17 @@ Tworzenie produktu w aplikacji musi zostać zaprojektowane razem z tworzeniem pi
 - [x] Udostępnić dane pojedynczej kategorii po UUID przez `GET /api/v1/web/categories/{id}`.
 - [x] Udostępnić produkty przypisane do kategorii i jej potomków przez `GET /api/v1/web/products/by-category`, z opcjonalnym stronicowaniem.
 - [x] Dodać ścieżkę przodków od korzenia do wybranej kategorii w `GET /api/v1/web/categories/{id}`.
-- [ ] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy i operacje drzewa.
+- [x] Sprawdzić ograniczenia w PostgreSQL i równoczesne przeniesienia; dodać generowanie `Slug` z nazwy i operacje drzewa.
 - [ ] Przy projektowaniu widoku ustalić format adresów, ewentualne przekierowania i kolejność kategorii mających tego samego rodzica.
 
 ### 2.5–2.7 Operacje katalogu
 
+Administrację ofertą wdrożono według [catalog-management-implementation-plan.md](catalog-management-implementation-plan.md), O0–O9. Są zapisy produktów/wariantów, kategorie, słownik cech, podstawowe korekty magazynu, gotowość i publikacja. O10 ma odbiór lokalny, sprawdzenie aktualizacji istniejącej bazy i porównanie kodu publicznego odczytu; pozostają migracje Supabase, rzeczywisty Auth w środowisku docelowym, frontend i pomiar środowiskowy. Koszyk i ulubione są oddzielnym, równolegle rozwijanym modułem; lokalny test HTTP sprawdza wspólne działanie po ukryciu oferty.
+
 - [x] Dodać ręcznie uruchamiany seeder przykładowego katalogu dla środowiska developerskiego; szczegóły w [demo-seed.md](demo-seed.md). Nie zastępuje operacji administracyjnych.
 - [x] Udostępnić szczegóły opublikowanego produktu z widocznymi wariantami przez `GET /api/v1/web/products` z parametrem `id` albo `slug`.
 - [x] Udostępnić ogólną listę widocznych produktów przez `GET /api/v1/web/products/catalog` z opcjonalnym stronicowaniem.
-- [ ] Dodać minimalne operacje administracyjne potrzebne do wprowadzenia i aktualizacji oferty.
+- [x] Dodać minimalne operacje administracyjne potrzebne do wprowadzenia i aktualizacji oferty.
 - [x] Dodać opcjonalne wyszukiwanie `q` po nazwie produktu i SKU widocznego wariantu do ogólnej listy i listy według kategorii, z użyciem PostgreSQL `ILIKE` przed stronicowaniem.
 - [x] Dodać `POST /api/v1/web/products/search` z JSON-em zawierającym filtry po dowolnych parach klucz–wartość widocznego wariantu, `q`, kategorię i stronicowanie.
 - [x] Udostępnić dostępne klucze i wartości cech przez `GET /api/v1/web/products/filter-options`, z opcjonalnym ograniczeniem do poddrzewa kategorii.
@@ -220,7 +222,8 @@ Stan 01.11.2026: [backend koszyka i ulubionych](cart-favorites-implementation-pl
 ## 7. Administracja i pliki
 
 - [x] Wdrożyć uprawnienie administratora oparte na zweryfikowanej sesji i tabeli app.administrators, z ręcznym nadawaniem przez właściciela bazy. Kontrolę odczytu, zapisu i odebrania uprawnienia dla cen potwierdzają testy; [instrukcja](administrator-access.md).
-- [ ] Rozbudować endpointy do zarządzania katalogiem, wariantami, kategoriami, cenami, promocjami, stanami i zamówieniami.
+- [x] Udostępnić endpointy do zarządzania ofertą: produkty, warianty, kategorie, cechy, ceny, promocje i stany magazynowe; zakres O0–O9 odebrany lokalnie.
+- [ ] Dodać administracyjne operacje zamówień po wdrożeniu modułu zamówień.
 - [ ] Ustalić zasady przesyłania, odczytu i usuwania plików w Supabase Storage, zwłaszcza zdjęć produktów.
 - [ ] Sprawdzić dostęp zwykłego klienta do operacji administracyjnych i plików; przetestować najważniejsze zmiany stanu.
 - [ ] Uzgodnić kontrakt z frontendowym panelem administracyjnym w stylu CRM.

@@ -297,10 +297,12 @@ public sealed class PromotionPostgresTests
         await using var db = Open();
         var variant = await db.ProductVariants.Where(v => v.ProductId == productId).FirstAsync();
         var category = await db.ProductCategories.AsNoTracking().Where(c => c.ProductId == productId).SingleAsync();
+        await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, CatalogStatus.Hidden));
         await db.ProductCategories.Where(c => c.ProductId == productId).ExecuteDeleteAsync();
         Assert.False(await db.VariantOfferEvents.Where(e => e.VariantId == variant.Id).OrderByDescending(e => e.OccurredAt).ThenByDescending(e => e.Id).Select(e => e.Visible).FirstAsync());
         db.ProductCategories.Add(new() { ProductId = productId, CategoryId = category.CategoryId });
         await db.SaveChangesAsync();
+        await db.Products.Where(p => p.Id == productId).ExecuteUpdateAsync(s => s.SetProperty(p => p.Status, CatalogStatus.Published));
         await db.ProductVariants.Where(v => v.Id == variant.Id).ExecuteUpdateAsync(s => s.SetProperty(v => v.Status, CatalogStatus.Hidden));
         Assert.False(await db.VariantOfferEvents.Where(e => e.VariantId == variant.Id).OrderByDescending(e => e.OccurredAt).ThenByDescending(e => e.Id).Select(e => e.Visible).FirstAsync());
         await db.ProductVariants.Where(v => v.Id == variant.Id).ExecuteUpdateAsync(s => s.SetProperty(v => v.Status, CatalogStatus.Published));
@@ -312,8 +314,13 @@ public sealed class PromotionPostgresTests
         db.ProductCategories.Add(new() { Product = p, CategoryId = category.CategoryId });
         db.VariantPriceChanges.Add(new() { Variant = v, BaseAmount = 100, SellingAmount = 100, EffectiveAt = future, Reason = "Przyszła" });
         await db.SaveChangesAsync();
-        await db.Products.Where(x => x.Id == p.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CatalogStatus.Published));
-        await db.ProductVariants.Where(x => x.Id == v.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CatalogStatus.Published));
+        // Legacy offering with a future-only price remains readable; a new admin
+        // publication is now rejected until a current PLN price exists.
+        await LegacyCatalogFixture.ImportAsync(db, async () =>
+        {
+            await db.Products.Where(x => x.Id == p.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CatalogStatus.Published));
+            await db.ProductVariants.Where(x => x.Id == v.Id).ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, CatalogStatus.Published));
+        });
         var prices = await db.VariantPriceChanges.Where(c => c.VariantId == v.Id).ToArrayAsync();
         var events = await db.VariantOfferEvents.Where(e => e.VariantId == v.Id).ToArrayAsync();
         Assert.Null(PriorPriceCalculator.Calculate(prices, events, DateTime.UtcNow));

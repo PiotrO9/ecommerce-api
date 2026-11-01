@@ -23,6 +23,10 @@ Migrację sprawdzono na nowej izolowanej bazie PostgreSQL 17. **Nie zastosowano 
 
 ## Schematy i odpowiedzialność
 
+Odczytowy audyt skonfigurowanego Supabase z 01.11.2026: raport oferty zwrócił 0 blokad i 0 ostrzeżeń; `AddCatalogManagement` i `AddCatalogPublicationRules` nadal oczekują na zastosowanie. Dane docelowe nie były zmieniane w ramach tego odbioru. Lokalny test aktualizacji zachował skrót wszystkich pól ceny historycznej i nie uzupełnił fikcyjnej daty publikacji; poprawnie odrzucił niekanoniczne cechy i niekompletną opublikowaną ofertę.
+
+Rozszerzenie administracji ofertą (01.11.2026): `AddCatalogManagement` dodaje `version bigint` do produktów, wariantów, kategorii, kluczy cech i magazynu oraz prywatny, niezmienny dziennik `app.catalog_operations` z unikalnością autora/klucza ponowienia. Wyzwalacze zwiększają wersje grafu i rozszerzają wspólną blokadę zapisów katalogu. `AddCatalogPublicationRules` sprawdza istniejące dane, wymaga kanonicznych wartości NFC+trim i egzekwuje odroczone warunki publikacji oraz pierwszą datę. Nowe migracje sprawdzono **wyłącznie lokalnie**, bez zastosowania w Supabase. Przed wdrożeniem uruchomić odczytowy [raport danych](../scripts/catalog-preflight.sql); niezgodności wymagają jawnej korekty, bez automatycznego ukrywania/zmieniania historii. Szczegóły wersji, audytu i kolejności są w [dokumencie administracji](catalog-management-implementation-plan.md#13-wdrożenie-odbiór-lokalny-i-użycie).
+
 Tabela `app.administrators` przechowuje PK `user_id` z FK do `auth.users.id` (`ON DELETE CASCADE`) i `created_at`. Migracja `20261031110337_AddAdministrators` włącza RLS i odbiera dostęp rolom Data API oraz PUBLIC. Zastosowano ją w skonfigurowanej bazie Supabase 31.10.2026. Nie tworzy administratorów i nie zmienia schematu `auth`. Zasady ręcznego nadania dostępu opisuje [dokument dostępu administratora](administrator-access.md). Seeder katalogu nie obejmuje tej tabeli.
 
 | Schemat | Obecne użycie | Właściciel zmian |

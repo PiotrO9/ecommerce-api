@@ -2,6 +2,38 @@
 
 Cel: zachować warunki, wyniki przed i po optymalizacji wyszukiwania, liczników filtrów i cen z 28.10.2026. To wynik testu na danych syntetycznych, nie gwarancja czasu odpowiedzi w środowisku produkcyjnym. Pomiary `q` we wcześniejszych sekcjach wykonano przed dodaniem domyślnego rankingu trafności; jego koszt zmierzono osobno na końcu dokumentu.
 
+## Administracja ofertą — pomiar 01.11.2026
+
+Nowy odtwarzalny pomiar: `tests/performance/catalog-management/catalog-management.csproj`. Zmienna `ECOMMERCE_PERFORMANCE_DATABASE` musi wskazywać lokalną bazę `ecomm_perf*` po migracjach; argument `--prepare` resetuje ją i tworzy zestaw. Nie używać na danych sklepu. Polecenie: `dotnet run --project tests/performance/catalog-management/catalog-management.csproj -- --prepare`. Kolejne uruchomienie bez argumentu mierzy istniejący zestaw.
+
+Zbiór: **5001 produktów, 15 100 wariantów, 15 131 cen**, w tym osobny produkt ze 100 opublikowanymi wariantami. PostgreSQL 17 na Windows, kod aplikacji wywoływany przez serwisy/kontroler, bez HTTP i Supabase Auth. Każdy przypadek: 5 rozgrzewek i 30 prób, nowe konteksty EF i pula połączeń. Liczba SQL oznacza komendy EF, bez wewnętrznych instrukcji wyzwalaczy oraz BEGIN/COMMIT. Czas obejmuje pracę transakcji i wyzwalaczy.
+
+| Operacja | p50 | p95 | SQL |
+| --- | ---: | ---: | ---: |
+| Lista administracyjna, 20 produktów | 3,72 ms | 4,12 ms | 2 |
+| 20 ze 100 wariantów produktu | 3,91 ms | 4,35 ms | 5 |
+| Gotowość całego produktu ze 100 wariantami, szczegóły 20 | 7,75 ms | 9,22 ms | 8 |
+| Publiczny katalog, 20 pozycji, cena rosnąco | 70,94 ms | 81,05 ms | 4 |
+| Publiczne wyszukiwanie, 20 pozycji | 124,53 ms | 241,90 ms | 6 |
+| Edycja produktu ze 100 wariantami | 3,38 ms | 4,18 ms | 8 |
+| Korekta magazynu | 2,82 ms | 3,28 ms | 8 |
+
+Odczyty administracyjne nie pobierają globalnej blokady zapisu i nie mają zapytania na każdy wariant. W serialnych zapisach p95 jawnego pobrania blokady wyniosło 0,19 ms dla produktu i 0,27 ms dla magazynu. W pojedynczej partii ośmiu równoległych edycji różnych produktów czas tej komendy wyniósł 0,15–11,04 ms. To obserwacja jednej partii, nie p95 ruchu produkcyjnego.
+
+Wniosek: administracyjne odczyty i pojedyncze zapisy są użyteczne na tym zestawie, a liczba SQL nie rośnie z liczbą wariantów poza stroną. Publiczne wyszukiwanie ma większy koszt. Pierwsza tabela nie jest porównaniem ze starszym audytem o innej historii i wariantach; w tle trwały też prace drugiego agenta. Nie wyciągamy z niej wniosku o regresji ani gwarantowanej latencji Supabase.
+
+### Kontrolne porównanie kodu publicznego odczytu
+
+Osobne procesy porównały kod z commita `f316b7b` (przed administracją i równoległą refaktoryzacją odczytu cen) z aktualnym drzewem roboczym. Oba korzystały z **tej samej, już zmigrowanej bazy** 5001 produktów / 15 100 wariantów / 15 131 cen, bez zapisu między próbami. Każdy przypadek miał 10 rozgrzewek i 50 prób. Identyczne skróty SHA-256 pełnych odpowiedzi potwierdziły zgodność danych, kolejności i publicznego kontraktu.
+
+| Publiczna operacja | Wcześniejszy kod p50 / p95 | Aktualny kod p50 / p95 | SQL przed / po |
+| --- | ---: | ---: | ---: |
+| Katalog, cena rosnąco, 20 pozycji | 36,77 / 41,40 ms | 36,29 / 38,91 ms | 4 / 4 |
+| Puste wyszukiwanie, 20 pozycji | 169,33 / 282,76 ms | 143,85 / 252,61 ms | 6 / 6 |
+
+W tej próbie nie zaobserwowano regresji ścieżki kodu odczytu. Niższych czasów nie przedstawiamy jako gwarantowanej optymalizacji: to pojedynczy lokalny pomiar. Porównanie nie odtwarza starego schematu bazy ani wpływu zdalnego Auth, sieci i infrastruktury Supabase; taki odbiór środowiskowy pozostaje w O10.
+
+
 ## Stan kodu przed optymalizacją
 
 - Stronicowany katalog wykonuje cztery polecenia SQL: licznik produktów, stronę produktów, pasujące warianty oraz bieżące ceny. `POST /api/v1/web/products/search` dodaje zapytanie o klucze cech, zapytanie o podstawowe liczniki oraz po jednym zapytaniu licznikowym dla każdego wybranego klucza. Dwa wybrane klucze oznaczają łącznie osiem poleceń SQL. Odpowiada za to `ProductsController.BuildAvailableFiltersAsync`.

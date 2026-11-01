@@ -4,6 +4,8 @@ Cel: opisać wdrożoną kontrolę dostępu do administracyjnych endpointów cen 
 
 ## Model dostępu
 
+Od 01.11.2026 ten sam model dostępu obejmuje także administrację produktów, wariantów, kategorii, cech i stanów magazynowych. Nowe operacje wymagają sesji administratora, `X-Requested-With: XMLHttpRequest` i `Idempotency-Key`; odczyt POST wyszukiwania nie wymaga klucza operacji. Autor pochodzi wyłącznie z sesji. Instrukcja i pełne trasy są w [dokumencie zarządzania ofertą](catalog-management-implementation-plan.md#13-wdrożenie-odbiór-lokalny-i-użycie).
+
 `app.administrators` ma `user_id uuid` jako PK i FK do `auth.users.id` z `ON DELETE CASCADE` oraz `created_at` UTC. Istnienie wpisu oznacza uprawnienie administratora. Nie jest wymagany uzupełniony profil. `AdministratorAccess` najpierw sprawdza chronione ciasteczko przez istniejący `AuthenticatedUserService` i Supabase Auth, a następnie za każdym żądaniem sprawdza wpis dla potwierdzonego UUID. Nie korzysta z e-maila ani `user_metadata`. Usunięcie wpisu działa od następnego sprawdzenia, bez czekania na wygaśnięcie tokenu. Żądanie już autoryzowane może zakończyć rozpoczętą operację.
 
 Migracja `20261031110337_AddAdministrators` tworzy tylko tabelę w `app`, włącza RLS i odbiera dostęp `PUBLIC`, `anon`, `authenticated`, `service_role`. Nie zmienia obiektów schematu `auth`. Backend używa dotychczasowego uprzywilejowanego połączenia EF. Nie istnieje publiczny endpoint nadawania uprawnienia ani mechanizm automatycznego awansu pierwszego konta.

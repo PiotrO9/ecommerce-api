@@ -2,6 +2,23 @@
 
 Cel: opisać zewnętrzne zachowanie endpointów istniejących w kodzie. Źródłem prawdy są `Controllers/`, `Contracts/`, `Services/Auth/` i `Services/Email/`; ten dokument trzeba aktualizować razem ze zmianą odpowiedzi API.
 
+## Zarządzanie ofertą — 01.11.2026
+
+Prefiks administracji: `/api/v1/web/admin`. W kodzie są zapisy produktów/wariantów, kategorii, dynamicznego słownika cech, magazynu oraz publikacji. Pełna lista tras i DTO jest w [planie administracji, część 6](catalog-management-implementation-plan.md#6-proponowane-api), a [część 13](catalog-management-implementation-plan.md#13-wdrożenie-odbiór-lokalny-i-użycie) zawiera aktualne reguły i instrukcję Postmana. Dwie nowe migracje sprawdzono lokalnie; wymagają osobnego zastosowania w Supabase.
+
+- `POST /products/search`: odczyt administracyjny z opcjonalnymi `q`, `status`, `categoryId` (poddrzewo), `collectionId`, `missingPrice`, `missingStock`, `page`, `pageSize`. Domyślnie 1/20, maksymalnie 100 pozycji. Braki odnoszą się do któregokolwiek wariantu produktu; brak magazynu nie jest stanem zero. Odpowiedź `{items,pagination}` zawiera podsumowania, bez pełnej historii cen i opisów wariantów.
+- `POST /products`: `name`, opcjonalny `slug`, `categoryIds`, wymagany `firstVariant:{sku,description,shortDescription,imageUrls,attributePairIds}`. Produkt i wariant powstają atomowo jako `Draft`; pominięte listy początkowe są puste.
+- `GET /products/{id}`, `GET /products/{id}/variants?page=1&pageSize=20`, `GET /variants/{id}`: odczyty również szkiców i ukrytych obiektów, z aktualnymi wersjami. Lista wariantów ma podsumowanie ceny PLN i magazynu, pobrane zbiorczo.
+- `PUT /products/{id}` wymaga `name`, `slug`, `expectedVersion`; osobne PUT-y `/categories` i `/status` przyjmują docelowy zestaw/status z wersją. `POST /products/{id}/variants` przyjmuje konfigurację nowego szkicu i `expectedProductVersion`.
+- `PUT /variants/{id}` zastępuje SKU, opisy i URL-e, z `expectedVersion`. `/attributes` przyjmuje pełny zestaw `attributePairIds`; `/status` docelowy status z wersją. Zmiana konfiguracji jest dozwolona tylko dla szkicu bez historii; UUID i produkt wariantu pozostają stałe.
+- `GET /products/{id}/publication-readiness` ma paginowane szczegóły wariantów; `/variants/{id}/publication-readiness` ocenia jeden wariant. Wynik ogólny dotyczy całego produktu, nie tylko strony. Brak ceny PLN blokuje wariant; produkt wymaga kategorii i opublikowanego wariantu. Opisy, zdjęcia i magazyn generują ostrzeżenia.
+- Kategorie: administracyjne GET drzewa/szczegółów, POST z `displayName`, opcjonalnym `slug`/`parentId`, PUT metadanych oraz `/parent`. `DELETE /categories/{id}?expectedVersion=...` usuwa wyłącznie pusty liść. Drzewo bez paginacji.
+- Słownik: GET/POST `/attribute-keys`, PUT `/attribute-keys/{id}` (`displayName`, wersja), GET/POST `/attribute-keys/{id}/values` (`value`). Kod jest niezmienny; pary NFC+trim są współdzielone i wrażliwe na wielkość liter. Listy mają paginację 1/20, maksymalnie 100.
+- `GET /variants/{id}/stock` zwraca `{variantId,stock}`; `stock` to `null` albo `{id,variantId,quantityOnHand,version,createdAt,updatedAt}`. PUT wymaga jawnych `quantityOnHand`, `expectedVersion` oraz `reason`; pierwsza wersja to `null`, kolejne są liczbą. Ilość nieujemna, powód 1–120 znaków.
+
+Wszystkie nowe trasy wymagają administratora, a mutacje dodatkowo `X-Requested-With: XMLHttpRequest` i UUID w `Idempotency-Key`. POST wyszukiwania jest odczytem bez klucza operacji. Mutacja zwraca `{replayed,id,version,productId,productVersion,variantId,variantVersion}`; pola niedotyczące operacji są null. Tworzenie `201`, ponowienie/odnalezienie w słowniku/edycja `200`, usunięcie kategorii `204`. Powtórzenie tego samego klucza z innymi danymi lub nieaktualna wersja daje `409`. Odpowiedzi mają `no-store`, JSON odrzuca nieznane pola. Wersja ceny pozostaje `expectedPriceChangeId`; nowe wersje opisowe nie zastępują dotychczasowego kontraktu cen/promocji. Nie ma DELETE produktu/wariantu ani automatycznego kończenia promocji podczas ukrycia.
+
+
 ## Koszyk i ulubione — 01.11.2026
 
 Trasy istnieją w kodzie; wymagają migracji `20261101132248_AddShoppingCartsAndFavorites`, sprawdzonej lokalnie i jeszcze niezastosowanej w Supabase. Prefiks: `/api/v1/web`. Gość ma koszyk, konto ma osobny koszyk i ulubione konkretnych wariantów. Logowanie niczego nie przenosi; po wylogowaniu wraca niewygasły koszyk gościa. Nie ma endpointów scalania ani rezerwacji magazynu.

@@ -22,11 +22,12 @@ public sealed record DemoSeedCreated(
     int PromotionOperations = 0,
     int Collections = 0,
     int CollectionProductLinks = 0,
-    int CollectionOperations = 0)
+    int CollectionOperations = 0,
+    int CatalogOperations = 0)
 {
     public int Sum() => Categories + Products + Variants + AttributeKeys + AttributePairs + ProductCategoryLinks
         + VariantAttributeLinks + Stocks + PriceChanges + OfferEvents + Promotions + PromotionVariants + PriceReductions + PromotionOperations
-        + Collections + CollectionProductLinks + CollectionOperations;
+        + Collections + CollectionProductLinks + CollectionOperations + CatalogOperations;
 }
 
 public sealed record DemoCatalogSeedResult(int Added, DemoSeedCreated Created);
@@ -56,6 +57,7 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
             TRUNCATE TABLE
                 app.cart_items,
                 app.favorite_items,
+                app.catalog_operations,
                 app.collection_operations,
                 app.collection_products,
                 app.collections,
@@ -80,30 +82,25 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         database.AddRange(data.Entities);
         await database.SaveChangesAsync(cancellationToken);
 
-        // Publikacja następuje dopiero po zapisaniu kategorii, wariantów i cen.
-        foreach (var variant in data.Variants)
-        {
-            variant.Status = CatalogStatus.Published;
-            variant.PublishedAt = data.CreatedAt;
-        }
-        foreach (var product in data.Products)
-        {
-            product.Status = product.Slug == "demo-produkt-10" ? CatalogStatus.Hidden : CatalogStatus.Published;
-            product.PublishedAt = data.CreatedAt;
-        }
-        foreach (var collection in data.CollectionsToPublish)
-        {
-            await database.Entry(collection).ReloadAsync(cancellationToken);
-            collection.Status = "Published";
-        }
-        await database.SaveChangesAsync(cancellationToken);
+        // Graph triggers advance tracked versions. Publish with bounded bulk
+        // writes in dependency order, not stale entities or a reload per row.
+        database.ChangeTracker.Clear();
+        var variantIds = data.Variants.Select(v => v.Id).ToArray();
+        await database.ProductVariants.Where(v => variantIds.Contains(v.Id)).ExecuteUpdateAsync(s =>
+            s.SetProperty(v => v.Status, CatalogStatus.Published).SetProperty(v => v.PublishedAt, data.CreatedAt), cancellationToken);
+        var productIds = data.Products.Select(p => p.Id).ToArray();
+        await database.Products.Where(p => productIds.Contains(p.Id)).ExecuteUpdateAsync(s =>
+            s.SetProperty(p => p.Status, p => p.Slug == "demo-produkt-10" ? CatalogStatus.Hidden : CatalogStatus.Published)
+                .SetProperty(p => p.PublishedAt, data.CreatedAt), cancellationToken);
+        var collectionIds = data.CollectionsToPublish.Select(c => c.Id).ToArray();
+        await database.Collections.Where(c => collectionIds.Contains(c.Id)).ExecuteUpdateAsync(s => s.SetProperty(c => c.Status, "Published"), cancellationToken);
         // Po dużym TRUNCATE i zapisie planista potrzebuje statystyk nowego katalogu.
         await database.Database.ExecuteSqlRawAsync("""
             ANALYZE app.categories, app.products, app.product_categories,
                 app.product_variants, app.attribute_keys, app.attribute_pairs,
                 app.variant_attribute_pairs, app.variant_stock, app.variant_price_changes,
                 app.promotions, app.promotion_variants, app.price_reductions, app.promotion_operations, app.variant_offer_events,
-                app.collections, app.collection_products, app.collection_operations,
+                app.collections, app.collection_products, app.collection_operations, app.catalog_operations,
                 app.cart_items, app.favorite_items
             """, cancellationToken);
         var created = data.Created with { OfferEvents = await database.VariantOfferEvents.CountAsync(cancellationToken) };

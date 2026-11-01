@@ -5,6 +5,7 @@ public sealed class AttributeKey
     private string _code = null!;
 
     public Guid Id { get; set; } = Guid.NewGuid();
+    public long Version { get; set; } = 1;
     public required string Code
     {
         get => _code;

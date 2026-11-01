@@ -4,7 +4,7 @@ Cel: opisać powiązanie stanu magazynowego z wariantem oraz pytania, które trz
 
 ## Stan potwierdzony w kodzie
 
-Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Publiczny odczyt szczegółów produktu zwraca ilość wariantu lub `null`, gdy rekord stanu nie istnieje. Nie ma operacji magazynowych, rezerwacji ani checkoutu; reguła blokowania zakupu bez rekordu stanu zostanie wdrożona w checkoutcie.
+Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Publiczny odczyt szczegółów produktu zwraca ilość wariantu lub `null`, gdy rekord stanu nie istnieje. Od 01.11.2026 są administracyjne `GET/PUT /api/v1/web/admin/variants/{id}/stock`: inicjalizacja i korekta ilości fizycznej z własnym `Version`, autorem, powodem i ilością przed/po w `catalog_operations`. Pierwszy zapis wymaga `expectedVersion:null`, kolejne aktualnej wersji. Nie ma kasowania stanu przez API, rezerwacji ani checkoutu. Nową migrację wersji sprawdzono lokalnie, bez zastosowania w Supabase; [szczegóły i Postman](catalog-management-implementation-plan.md#13-wdrożenie-odbiór-lokalny-i-użycie).
 
 ## Ustalenie z właścicielem projektu
 
@@ -20,7 +20,7 @@ Stan jest oddzielony od danych opisowych wariantu w relacji zero albo jeden reko
 | --- | --- | --- |
 | `variant_stock` | `id uuid` PK; `variant_id uuid` NOT NULL UNIQUE FK → `product_variants.id`; `quantity_on_hand integer`; `created_at`, `updated_at` (UTC) | Osobny identyfikator i daty rekordu stanu. UNIQUE na `variant_id` pozwala przypisać wariantowi najwyżej jeden rekord. `quantity_on_hand` roboczo oznacza liczbę fizycznie posiadanych sztuk. |
 
-Roboczo `quantity_on_hand` nie może być ujemne. Wariant ze śledzonym stanem, ale bez fizycznie posiadanych sztuk miałby wartość `0`. Sama definicja ilości fizycznie posiadanej jest propozycją do potwierdzenia przed modelem rezerwacji.
+Roboczo `quantity_on_hand` nie może być ujemne. Wariant ze śledzonym stanem, ale bez fizycznie posiadanych sztuk miałby wartość `0`. Dla ręcznych korekt przyjęto ilość fizycznie posiadaną; rezerwacje wymagają osobnego modelu dostępności.
 
 ```mermaid
 flowchart LR
@@ -28,13 +28,13 @@ flowchart LR
     V -->|"1 → 0 lub 1 rekord stanu"| S["STAN WARIANTU<br/>Id PK, VariantId UNIQUE FK<br/>QuantityOnHand<br/>CreatedAt, UpdatedAt"]
 ```
 
-Oddzielna tabela pozwala zmieniać ilość niezależnie od opisu i zdjęć wariantu. Encja i migracja są w kodzie; działanie ograniczeń pozostaje do sprawdzenia na PostgreSQL.
+Oddzielna tabela ma własną wersję, bez podnoszenia wersji opisowej produktu. Inicjalizację, nieujemność, korekty i ich współbieżność sprawdzają testy PostgreSQL zarządzania ofertą.
 
 ## Pytania otwarte
 
-1. Czy `QuantityOnHand` oznacza sztuki fizycznie posiadane, sztuki dostępne do sprzedaży, czy oba pojęcia trzeba przechowywać osobno? Przy rezerwacjach dostępność może różnić się od stanu fizycznego.
+1. Przyjęto ilość fizyczną dla ręcznych korekt. Jak rozdzielić ją od dostępności po dodaniu rezerwacji?
 2. Kiedy pomniejszać lub rezerwować ilość: przy rozpoczęciu checkoutu, utworzeniu zamówienia czy potwierdzeniu płatności? Co robić po nieudanej płatności lub porzuconym checkoutcie?
 3. Czy dopuszczać sprzedaż przy istniejącym rekordzie ze stanem `0` (przedsprzedaż lub backorder), czy blokować zakup? Brak rekordu zawsze blokuje zakup.
-4. Jak zapisywać korekty i ich powody oraz jak chronić ostatnią sztukę przed równoczesnym zakupem przez dwie osoby?
+4. Jak chronić ostatnią sztukę przed równoczesnym zakupem? Ręczne korekty, powody i wersjonowanie są wdrożone; nie zastępują kontroli checkoutu.
 
 Te odpowiedzi wyznaczą model rezerwacji i zmian stanu. Samo pole z ilością nie rozwiązuje jeszcze spójności checkoutu.

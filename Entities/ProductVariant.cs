@@ -3,6 +3,7 @@ namespace E_commerce_backend.Entities;
 public sealed class ProductVariant
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public long Version { get; set; } = 1;
     public Guid ProductId { get; set; }
     public Product Product { get; set; } = null!;
     public required string SKU { get; set; }

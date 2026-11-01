@@ -3,6 +3,7 @@ namespace E_commerce_backend.Entities;
 public sealed class Category
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public long Version { get; set; } = 1;
     public required string DisplayName { get; set; }
     public required string Slug { get; set; }
     public Guid? ParentId { get; set; }

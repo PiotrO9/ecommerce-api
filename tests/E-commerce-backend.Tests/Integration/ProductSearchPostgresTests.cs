@@ -135,9 +135,9 @@ public sealed class ProductSearchPostgresTests
                 SellingAmount = 25m,
                 Currency = "USD",
                 EffectiveAt = DateTime.UtcNow.AddDays(-1),
-                Reason = "Test: bez ceny PLN"
+                Reason = "Test: import historyczny bez ceny PLN"
             });
-        await database.SaveChangesAsync();
+        await LegacyCatalogFixture.ImportAsync(database, () => database.SaveChangesAsync());
 
         var controller = new ProductsController(database);
         var mismatch = await SearchAsync(controller, new ProductSearchRequest

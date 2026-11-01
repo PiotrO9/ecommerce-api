@@ -72,6 +72,13 @@ namespace E_commerce_backend.Data.Migrations
                         .HasColumnType("character varying(120)")
                         .HasColumnName("display_name");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
@@ -156,6 +163,80 @@ namespace E_commerce_backend.Data.Migrations
                         });
                 });
 
+            modelBuilder.Entity("E_commerce_backend.Entities.CatalogOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<long?>("ExpectedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_version");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("OperationKey")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_key");
+
+                    b.Property<int?>("QuantityAfter")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity_after");
+
+                    b.Property<int?>("QuantityBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("quantity_before");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<string>("ResponseJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("response_json");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("integer")
+                        .HasColumnName("status_code");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("target_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId", "OperationKey")
+                        .IsUnique();
+
+                    b.ToTable("catalog_operations", "app", t =>
+                        {
+                            t.HasCheckConstraint("CK_catalog_operations_kind", "kind IN ('product.create','product.update','product.categories','product.status','variant.create','variant.update','variant.attributes','variant.status','category.create','category.update','category.parent','category.delete','key.create','key.update','pair.create','stock.set')");
+
+                            t.HasCheckConstraint("CK_catalog_operations_status", "status_code IN (200,201,204)");
+                        });
+                });
+
             modelBuilder.Entity("E_commerce_backend.Entities.Category", b =>
                 {
                     b.Property<Guid>("Id")
@@ -189,6 +270,13 @@ namespace E_commerce_backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
 
                     b.HasKey("Id");
 
@@ -483,6 +571,13 @@ namespace E_commerce_backend.Data.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Slug")
@@ -568,6 +663,13 @@ namespace E_commerce_backend.Data.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
 
                     b.HasKey("Id");
 
@@ -1035,6 +1137,13 @@ namespace E_commerce_backend.Data.Migrations
                     b.Property<Guid>("VariantId")
                         .HasColumnType("uuid")
                         .HasColumnName("variant_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
 
                     b.HasKey("Id");
 

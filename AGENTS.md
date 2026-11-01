@@ -15,6 +15,7 @@ To repozytorium zawiera backend aplikacji e-commerce napisany w ASP.NET Core na 
 - `docs/database.md` opisuje schematy PostgreSQL, mapowanie EF Core i zasady migracji.
 - `docs/project-direction.md` jest plikiem kontrolnym planu backendu: moduły, lista prac, statusy i decyzje otwarte.
 - `docs/catalog-model.md` zawiera wstępny model produktu, wariantu, cech i kategorii oraz relacje i pytania otwarte przed migracją.
+- `docs/catalog-management-implementation-plan.md` opisuje administrację ofertą, reguły, endpointy i instrukcję Postmana: O0–O9 są w kodzie, O10 wymaga odbioru środowiskowego; migracje oferty sprawdzono lokalnie, bez zastosowania w Supabase.
 - `docs/inventory-model.md` zawiera wstępne ustalenie stanu magazynowego per wariant i otwarte reguły rezerwacji.
 - `docs/pricing-model.md` zawiera decyzje o cenie wariantu i koncepcję historii kolejnych zmian cen.
 - `docs/promotion-implementation-plan.md` opisuje wdrożone promocje produktu, okresy oferowania, wcześniejszą cenę, wynik odbioru i granice pierwszej wersji.
