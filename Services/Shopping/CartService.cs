@@ -15,7 +15,7 @@ public sealed class CartService(AppDbContext db, ShoppingStore store, ShoppingOf
         await ShoppingWriteLock.SharedAsync(db, ct);
         var state = await store.CartAsync(owner, false, ct);
         if (state is null || store.IsExpired(state)) return Empty();
-        var now = time.GetUtcNow().UtcDateTime;
+        var now = await E_commerce_backend.Services.Inventory.InventoryAvailability.NowAsync(db, ct);
         var rows = await db.CartItems.AsNoTracking().Where(i => i.ShoppingStateId == state.Id)
             .OrderBy(i => i.CreatedAt).ThenBy(i => i.VariantId).ToArrayAsync(ct);
         var variants = await offers.ReadAsync(rows.Select(i => i.VariantId).ToArray(), now, ct);
@@ -52,7 +52,8 @@ public sealed class CartService(AppDbContext db, ShoppingStore store, ShoppingOf
             {
                 if (current is null || requested > current.Quantity)
                 {
-                    var available = await offers.ReadAsync([variantId!.Value], time.GetUtcNow().UtcDateTime, ct);
+                    var available = await offers.ReadAsync([variantId!.Value],
+                        await E_commerce_backend.Services.Inventory.InventoryAvailability.NowAsync(db, ct), ct);
                     var offer = available.GetValueOrDefault(variantId.Value);
                     if (offer is null) return ShoppingResult.Error(404, "variant_unavailable", "Wariant jest niedostępny.");
                     var availability = ShoppingOfferReader.Availability(offer, requested);

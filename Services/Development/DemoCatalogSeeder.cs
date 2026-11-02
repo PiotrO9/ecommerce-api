@@ -38,6 +38,7 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
     {
         await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
         await CatalogWriteLock.AcquireAsync(database, cancellationToken);
+        if (await database.Orders.AnyAsync(cancellationToken)) throw new InventorySeedBlockedException();
 
         // Serializuje dwa równoczesne wywołania seedera na tej samej bazie.
         await database.Database.ExecuteSqlRawAsync(
@@ -55,6 +56,12 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         // TRUNCATE omija wyzwalacz DELETE historii cen; endpoint działa tylko w Development.
         await database.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE
+                app.inventory_payment_receipts,
+                app.stock_movements,
+                app.stock_reservation_items,
+                app.stock_reservations,
+                app.order_items,
+                app.orders,
                 app.cart_items,
                 app.favorite_items,
                 app.catalog_operations,
@@ -107,6 +114,11 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         await transaction.CommitAsync(cancellationToken);
         return new DemoCatalogSeedResult(created.Sum(), created);
     }
+}
+
+public sealed class InventorySeedBlockedException : Exception
+{
+    public InventorySeedBlockedException() : base("Reset katalogu jest zablokowany, ponieważ istnieją zamówienia.") { }
 }
 
 // Wszystkie klucze UUID powstają w aplikacji, więc cały graf można przygotować

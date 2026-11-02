@@ -143,7 +143,7 @@ public sealed class ShoppingHttpTests
         NoStore(response); return (await response.Content.ReadFromJsonAsync<T>())!;
     }
 
-    private sealed class ShoppingApp(ShoppingScenario scenario, int guestLimit = 100) : WebApplicationFactory<Program>
+    internal sealed class ShoppingApp(ShoppingScenario scenario, int guestLimit = 100, int writeLimit = 120) : WebApplicationFactory<Program>
     {
         public bool AuthUnavailable { get; set; }
         protected override IHost CreateHost(IHostBuilder builder)
@@ -156,7 +156,8 @@ public sealed class ShoppingHttpTests
                 ["Supabase:Url"] = "https://auth.example.test/", ["Supabase:PublishableKey"] = "test-public",
                 ["Supabase:SecretKey"] = "test-secret", ["Mailtrap:ApiToken"] = "test-only",
                 ["Mailtrap:FromEmail"] = "test@example.com", ["PasswordReset:Url"] = "https://localhost/reset-password",
-                ["Shopping:GuestSessionsPerHour"] = guestLimit.ToString(), ["DemoSeed:Enabled"] = "false"
+                ["Shopping:GuestSessionsPerHour"] = guestLimit.ToString(), ["DemoSeed:Enabled"] = "false",
+                ["Shopping:WriteRequestsPerMinute"] = writeLimit.ToString()
             }));
             return base.CreateHost(builder);
         }

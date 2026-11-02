@@ -19,7 +19,7 @@ public sealed class FavoritesService(AppDbContext db, ShoppingStore store, Shopp
         var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(i => i.CreatedAt).ThenBy(i => i.VariantId)
             .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync(ct);
-        var now = time.GetUtcNow().UtcDateTime;
+        var now = await E_commerce_backend.Services.Inventory.InventoryAvailability.NowAsync(db, ct);
         var variants = await offers.ReadAsync(rows.Select(i => i.VariantId).ToArray(), now, ct);
         var items = rows.Select(i => new FavoriteItemResponse(i.VariantId, i.CreatedAt,
             ShoppingOfferReader.Availability(variants.GetValueOrDefault(i.VariantId)), variants.GetValueOrDefault(i.VariantId))).ToArray();

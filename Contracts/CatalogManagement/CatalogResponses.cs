@@ -16,7 +16,11 @@ public sealed record AdminVariantRow(Guid Id, Guid ProductId, string Sku, string
 public sealed record AdminVariantSummary(AdminVariantRow Variant, decimal? SellingAmount, string Currency, AdminStock? Stock);
 public sealed record AdminVariantDetails(AdminVariantRow Variant, long ProductVersion, IReadOnlyList<Guid> AttributePairIds,
     decimal? SellingAmount, string Currency, AdminStock? Stock);
-public sealed record AdminStock(Guid Id, Guid VariantId, int QuantityOnHand, long Version, DateTime CreatedAt, DateTime UpdatedAt);
+public sealed record AdminStock(Guid Id, Guid VariantId, int QuantityOnHand, long Version, DateTime CreatedAt, DateTime UpdatedAt,
+    int QuantityReserved = 0)
+{
+    public int QuantityAvailable => QuantityOnHand - QuantityReserved;
+}
 public sealed record AdminStockResponse(Guid VariantId, AdminStock? Stock);
 public sealed record AdminCategory(Guid Id, string DisplayName, string Slug, Guid? ParentId, long Version,
     DateTime CreatedAt, DateTime UpdatedAt);

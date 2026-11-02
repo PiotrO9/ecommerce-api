@@ -4,6 +4,8 @@ Cel: opisać ręcznie uruchamiany seeder danych demonstracyjnych potrzebny podcz
 
 Zasady rozbudowy seedera przy kolejnych zmianach modelu bazy są w [seeder-maintenance.md](seeder-maintenance.md).
 
+Magazyn 01.11.2026: przy jakimkolwiek zamówieniu reset daje `409 seed_blocked_by_orders` przed zmianą danych. Jawny TRUNCATE obejmuje dodatkowo sześć pustych tabel zakupowych: `orders`, `order_items`, `stock_reservations`, `stock_reservation_items`, `stock_movements`, `inventory_payment_receipts` — 26 tabel łącznie, bez `CASCADE`. Dane zakupowe nie są seedowane ani usuwane. Osiemnaście liczników katalogowych i `added` nie zmienia się. `ANALYZE` nadal obejmuje 20 tabel katalogu/shopping. Szczegóły: [magazyn](inventory-model.md).
+
 Tabela `app.administrators` jest celowo wyłączona z seedowania i resetu: zawiera uprawnienia kont. Seeder nie tworzy fikcyjnych kont, nie nadaje uprawnień i nie usuwa istniejących administratorów. Liczniki katalogu nie obejmują tej tabeli; test PostgreSQL potwierdza jej zachowanie podczas resetu. Pierwszy dostęp nadaje się według [instrukcji administratora](administrator-access.md).
 
 Podstawowe historyczne stany cen seeder tworzy z `operation_key`, `changed_by_user_id` i `previous_price_change_id` równymi null. Nie są to działania administratora, więc nie tworzy fikcyjnych kont ani kluczy operacji; nowe scenariusze promocji mają osobne powiązania i liczniki opisane poniżej. Zgodność zapisu i ponownego resetu po użyciu `VariantPriceService` sprawdza test PostgreSQL. Powód wyjątku i zakres migracji są w [modelu cen](pricing-model.md#wdrożony-pierwszy-etap--29102026).

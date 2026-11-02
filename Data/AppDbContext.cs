@@ -5,6 +5,12 @@ namespace E_commerce_backend.Data;
 
 public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
+    public DbSet<InventoryOrder> Orders => Set<InventoryOrder>();
+    public DbSet<InventoryOrderItem> OrderItems => Set<InventoryOrderItem>();
+    public DbSet<StockReservation> StockReservations => Set<StockReservation>();
+    public DbSet<StockReservationItem> StockReservationItems => Set<StockReservationItem>();
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<InventoryPaymentReceipt> InventoryPaymentReceipts => Set<InventoryPaymentReceipt>();
     public DbSet<ShoppingState> ShoppingStates => Set<ShoppingState>();
     public DbSet<CartItem> CartItems => Set<CartItem>();
     public DbSet<FavoriteList> FavoriteLists => Set<FavoriteList>();
@@ -71,5 +77,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         PromotionModelConfiguration.Configure(modelBuilder);
         CollectionModelConfiguration.Configure(modelBuilder);
         ShoppingModelConfiguration.Configure(modelBuilder);
+        InventoryModelConfiguration.Configure(modelBuilder);
     }
 }

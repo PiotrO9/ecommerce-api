@@ -15,6 +15,9 @@ public sealed class VariantStockService(AppDbContext db, CatalogCommandStore sto
         {
             if (!await db.ProductVariants.AnyAsync(v => v.Id == id, ct)) throw new CatalogValidation("variant_not_found", status: 404);
             var stock = await db.VariantStocks.AsNoTracking().SingleOrDefaultAsync(s => s.VariantId == id, ct);
+            var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(db, [id],
+                await E_commerce_backend.Services.Inventory.InventoryAvailability.NowAsync(db, ct), ct);
+            if (r.QuantityOnHand < reserved.GetValueOrDefault(id)) throw new CatalogValidation("stock_below_reservations", status: 409);
             var before = stock?.QuantityOnHand;
             if (stock is null)
             {

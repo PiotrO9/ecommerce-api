@@ -67,7 +67,8 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
 
         try
         {
-            var now = DateTime.UtcNow;
+            await using var snapshot = await database.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead, cancellationToken);
+            var now = await E_commerce_backend.Services.Inventory.InventoryAvailability.NowAsync(database, cancellationToken);
             var query = database.Products
                 .AsNoTracking()
                 .AsSplitQuery()
@@ -91,7 +92,9 @@ public sealed class ProductsController(AppDbContext database) : WebApiController
                             .ThenInclude(pair => pair.AttributeKey)
                 .SingleOrDefaultAsync(cancellationToken);
 
-            var response = ProductDetailsBuilder.Build(product, now);
+            var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(database,
+                product?.Variants.Select(v => v.Id).ToArray() ?? [], now, cancellationToken);
+            var response = ProductDetailsBuilder.Build(product, now, reserved);
             return response is null
                 ? NotFound(new { message = "Nie znaleziono produktu." })
                 : Ok(response);

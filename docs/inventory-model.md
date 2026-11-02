@@ -1,40 +1,73 @@
-# Wstępny model stanu magazynowego
+# Magazyn wariantów i rezerwacje
 
-Cel: opisać powiązanie stanu magazynowego z wariantem oraz pytania, które trzeba rozstrzygnąć przed modelem checkoutu. Model produktu i wariantu jest w [modelu katalogu](catalog-model.md).
+Cel: opisać stan magazynu, rezerwacje, minimalne zamówienie i granice pierwszej implementacji. Powiązane dokumenty: [katalog](catalog-model.md), [API](api-contract.md), [testy](testing.md).
 
-## Stan potwierdzony w kodzie
+## Stan kodu — 01.11.2026
 
-Backend ma encję `VariantStock`, mapowanie EF Core i zastosowaną w Supabase migrację tworzącą `app.variant_stock` z własnym UUID, unikalnym `variant_id`, nieujemnym `quantity_on_hand` oraz datami UTC. Publiczny odczyt szczegółów produktu zwraca ilość wariantu lub `null`, gdy rekord stanu nie istnieje. Od 01.11.2026 są administracyjne `GET/PUT /api/v1/web/admin/variants/{id}/stock`: inicjalizacja i korekta ilości fizycznej z własnym `Version`, autorem, powodem i ilością przed/po w `catalog_operations`. Pierwszy zapis wymaga `expectedVersion:null`, kolejne aktualnej wersji. Nie ma kasowania stanu przez API, rezerwacji ani checkoutu. Nową migrację wersji sprawdzono lokalnie, bez zastosowania w Supabase; [szczegóły i Postman](catalog-management-implementation-plan.md#13-wdrożenie-odbiór-lokalny-i-użycie).
+Istnieją stan wariantu, korekty administratora, rezerwacje przy składaniu zamówienia, anulowanie, wygaszanie i serwerowe rozliczenie sprzedaży. Zamówienie utrwala nazwę, SKU, cechy, wariant, ilość, cenę oraz identyfikator historycznej ceny. Klient może odczytać własną historię i anulować oczekujące zamówienie. To minimalny wycinek potrzebny do magazynu: bez adresu, dostawy, kosztów dostawy, Tpay, zwrotów i administracyjnego API zamówień.
 
-## Ustalenie z właścicielem projektu
+Migracji `20261101191527_AddInventoryReservations` nie zastosowano w zdalnym Supabase w tym zadaniu. Odbiór lokalny i odtwarzanie testów opisuje [testing.md](testing.md).
 
-Każdy wariant produktu ma mieć możliwość posiadania **własnego stanu magazynowego**. Wariant może mieć zero albo jeden rekord stanu; brak rekordu oznacza, że ilość nie jest dla niego określona, a nie że wynosi `0`. **Backend blokuje zakup wariantu bez rekordu stanu**, ponieważ nie zna jego ilości. Reguła musi być sprawdzana przy składaniu zamówienia, także gdy wariant został wcześniej dodany do koszyka. Ilość jednego wariantu nie jest wspólną ilością produktu ani innych wariantów. Przykład: koszulka `czerwona/S` może mieć stan 5, a `czerwona/M` stan 12.
+## Ilość i dostępność
 
-Rekord stanu ma mieć własne `Id`, `CreatedAt` i `UpdatedAt`. `VariantId` nadal wskazuje wariant; nie jest identyfikatorem rekordu stanu. Źródło: ustalenie z właścicielem projektu z 21 października 2026 r.
+Każdy wariant ma zero albo jeden `VariantStock`, z własnym UUID, datami i wersją. Brak rekordu oznacza nieznany stan, nie zero, i blokuje zakup. Zero blokuje dodanie/zwiększenie pozycji oraz zamówienie. Te reguły istnieją już w koszyku; poprzedni dokument pozostawiał sprzedaż przy zerze jako pytanie otwarte. Podstawowa relacja i znaczenie braku stanu wynikają z ustalenia użytkownika z 21.10.2026.
 
-## Uzgodniony wstępny kształt rekordu
+`QuantityOnHand` oznacza stan ewidencyjny magazynu sprzedażowego. Pierwsza implementacja pomniejsza go po potwierdzeniu płatności, więc nie obejmuje już sprzedanych sztuk oczekujących na wysyłkę. To doprecyzowanie wcześniejszego roboczego określenia „ilość fizyczna”; ewidencja fizycznej wysyłki należy do przyszłego modułu realizacji.
 
-Stan jest oddzielony od danych opisowych wariantu w relacji zero albo jeden rekord stanu na wariant:
-
-| Tabela `app` | Pola | Znaczenie |
-| --- | --- | --- |
-| `variant_stock` | `id uuid` PK; `variant_id uuid` NOT NULL UNIQUE FK → `product_variants.id`; `quantity_on_hand integer`; `created_at`, `updated_at` (UTC) | Osobny identyfikator i daty rekordu stanu. UNIQUE na `variant_id` pozwala przypisać wariantowi najwyżej jeden rekord. `quantity_on_hand` roboczo oznacza liczbę fizycznie posiadanych sztuk. |
-
-Roboczo `quantity_on_hand` nie może być ujemne. Wariant ze śledzonym stanem, ale bez fizycznie posiadanych sztuk miałby wartość `0`. Dla ręcznych korekt przyjęto ilość fizycznie posiadaną; rezerwacje wymagają osobnego modelu dostępności.
-
-```mermaid
-flowchart LR
-    P["PRODUKT<br/>Id"] -->|"1 → co najmniej 1"| V["WARIANT<br/>Id, ProductId, SKU"]
-    V -->|"1 → 0 lub 1 rekord stanu"| S["STAN WARIANTU<br/>Id PK, VariantId UNIQUE FK<br/>QuantityOnHand<br/>CreatedAt, UpdatedAt"]
+```text
+quantityAvailable = quantityOnHand − suma aktywnych rezerwacji z expiresAt > evaluatedAt
 ```
 
-Oddzielna tabela ma własną wersję, bez podnoszenia wersji opisowej produktu. Inicjalizację, nieujemność, korekty i ich współbieżność sprawdzają testy PostgreSQL zarządzania ofertą.
+Suma jest wyliczana zbiorczo, bez osobnego licznika rezerwacji. `quantityOnHand` zachowuje znaczenie, nowe `quantityAvailable` służy ocenie zakupu. Oba są `null` przy nieznanym stanie. Szczegóły produktu, koszyk i ulubione stosują wspólną regułę; listy katalogu nadal nie obiecują ilości. Administracyjne odczyty magazynu i wariantów dodatkowo zwracają `quantityReserved`. Rezerwacja nie zwiększa wersji ilości ewidencyjnej; korekta sprawdza rezerwacje ponownie pod blokadą.
 
-## Pytania otwarte
+## Reguły pierwszej wersji
 
-1. Przyjęto ilość fizyczną dla ręcznych korekt. Jak rozdzielić ją od dostępności po dodaniu rezerwacji?
-2. Kiedy pomniejszać lub rezerwować ilość: przy rozpoczęciu checkoutu, utworzeniu zamówienia czy potwierdzeniu płatności? Co robić po nieudanej płatności lub porzuconym checkoutcie?
-3. Czy dopuszczać sprzedaż przy istniejącym rekordzie ze stanem `0` (przedsprzedaż lub backorder), czy blokować zakup? Brak rekordu zawsze blokuje zakup.
-4. Jak chronić ostatnią sztukę przed równoczesnym zakupem? Ręczne korekty, powody i wersjonowanie są wdrożone; nie zastępują kontroli checkoutu.
+Podstawa zakresu: plan przedstawiony użytkownikowi i polecenie rozpoczęcia wdrożenia z 01.11.2026. Poniższe czasy są domyślnymi ustawieniami implementacji, nie wymaganiami operatora płatności.
 
-Te odpowiedzi wyznaczą model rezerwacji i zmian stanu. Samo pole z ilością nie rozwiązuje jeszcze spójności checkoutu.
+- Koszyk i otwarcie checkoutu nie rezerwują. Rezerwacja powstaje z zamówieniem zalogowanego klienta.
+- Zamówienie obejmuje cały koszyk konta. Wymaga zgodnego UUID zakresu, wersji i akceptacji każdej pozycji: wariant, ilość, `priceChangeId`, `unitPrice`.
+- Backend ponownie sprawdza publikację, cenę PLN i dostępność. Zmiana ceny daje `price_changed`; nie powstaje częściowe zamówienie ani rezerwacja.
+- Zapis zamówienia, pozycji i rezerwacji oraz opróżnienie koszyka są jedną transakcją. Nie ma przenoszenia koszyka gościa.
+- Termin to domyślnie 15 minut, `Inventory:ReservationMinutes` 1–120. Czas ocenia PostgreSQL po uzyskaniu blokad. Ponowienie nie przedłuża terminu.
+- `Idempotency-Key` jest UUID unikalnym dla konta. Identyczne ponowienie zwraca to samo zamówienie, aktualny status, pierwotny termin i `replayed:true`, także po opróżnieniu koszyka. Inna treść daje konflikt. Kolejność pozycji nie zmienia treści komendy.
+- Korekta nie może ustawić ilości poniżej aktywnych rezerwacji. Anulowanie zwalnia rezerwację bez pomniejszenia stanu i nie odtwarza opróżnionego koszyka.
+- Po terminie rezerwacja nie blokuje dostępności, nawet przed pracą workera. Odczyt zamówienia pokazuje efektywny status `Expired` przed jego utrwaleniem.
+- Zaufane potwierdzenie płatności przed terminem zmienia rezerwację na `Consumed` i pomniejsza stan raz. Obowiązuje snapshot ceny zamówienia.
+- Ten sam UUID zdarzenia płatności musi wskazywać to samo zamówienie, kwotę i walutę. Następne zdarzenie dla opłaconego zamówienia nie odejmuje ponownie stanu. Rozpoznanie faktycznego podwójnego obciążenia wymaga przyszłego adaptera operatora.
+- Płatność po terminie lub anulowaniu zapisuje `PaymentReview` bez pomniejszenia stanu i bez wznowienia rezerwacji. Zwrot pieniędzy wymaga modułu płatności.
+- Nieudana próba płatności nie zmienia rezerwacji: pozostaje ona do terminu lub anulowania.
+- Ceny zerowe są dozwolone zgodnie z katalogiem. Serwerowe rozliczenie przyjmuje zero; automatyczny checkout darmowych zamówień nie ma jeszcze osobnej ścieżki API.
+
+## Model danych
+
+| Tabela `app` | Znaczenie |
+| --- | --- |
+| `variant_stock` | Istniejąca nieujemna ilość, unikalny wariant, wersja i daty |
+| `orders` | Konto, klucz/hash komendy, status, suma towarów PLN i daty |
+| `order_items` | Niezmienny snapshot nazwy, SKU, cech, wariantu, ceny i ilości |
+| `stock_reservations` | Jedna rezerwacja zamówienia, status, stały termin i daty |
+| `stock_reservation_items` | Ilości wariantów; wymagają istniejącego rekordu stanu |
+| `stock_movements` | Niezmienna ilość przed/po sprzedaży, najwyżej jeden wpis na pozycję rezerwacji |
+| `inventory_payment_receipts` | Niezmienny wynik zaufanego zdarzenia płatności, unikalny UUID zdarzenia |
+
+Statusy zamówienia: `PendingPayment`, `Paid`, `Cancelled`, `Expired`, `PaymentReview`. Statusy rezerwacji: `Active`, `Consumed`, `Released`, `Expired`. Terminalna rezerwacja nie wraca do aktywności. Dane zakupowe używają FK `RESTRICT`, bez kasowania kaskadowego. Zamówienie blokuje bezpośrednie usunięcie konta Auth; przyszły proces usunięcia/anonimizacji musi świadomie obsłużyć historię.
+
+Nowe tabele mają RLS i odebrane uprawnienia `PUBLIC`, `anon`, `authenticated`, `service_role`. Nie są wystawiane przez Data API. Backend nadal sprawdza tożsamość i właściciela. Funkcje nie używają `SECURITY DEFINER`.
+
+## Transakcje i PostgreSQL
+
+`InventoryOrderService` zachowuje blokadę katalogu `(20261031,3)`, wymaganą przez istniejące triggery. Pobiera ją przed współdzieloną blokadą shopping, wierszem koszyka i stanami wariantów pobieranymi w kolejności UUID przez `FOR UPDATE`. Pozostałe zapisy magazynu też zaczynają od blokady katalogu. W transakcji nie ma HTTP ani wysyłki wiadomości.
+
+Pierwsza wersja serializuje zapisy także między różnymi wariantami. Zmiana wymaga wspólnego projektu dla promocji, publikacji, administracji i seedera oraz pomiarów; nie wystarczy usunąć blokady tylko z checkoutu.
+
+Odroczone ograniczenia sprawdzają przy commit zgodność zamówienia, pozycji, rezerwacji, sumy, historycznej ceny i rozliczenia. Chronią też przed SQL obniżającym stan poniżej aktywnych rezerwacji. Triggery blokują zmianę snapshotów, historii, tożsamości i terminu oraz niedozwolone przejścia statusów. Błąd wycofuje także opróżnienie koszyka.
+
+`ReservationExpiryWorker` przetwarza do 100 rezerwacji na transakcję co 30 sekund (`Inventory:ExpiryIntervalSeconds` 1–300). Kilka instancji serializuje się tą samą blokadą. Po restarcie wybierane są stare terminy. Poprawność dostępności i rozliczenia nie zależy od punktualności workera.
+
+## Płatności, seeder i dalszy odbiór
+
+`ConfirmPaymentAsync` nie ma publicznego endpointu. Przyszły adapter Tpay musi najpierw zweryfikować autentyczność zdarzenia, mapowanie zamówienia, UUID zdarzenia, kwotę i walutę. Powrót przeglądarki nie może rozliczać magazynu. Zwroty, przywracanie stanu i wysyłka pozostają osobnym zakresem.
+
+Seeder zachowuje 18 liczników katalogu. Nowe dane zakupowe nie są seedowane, bo należą do kont; przygotowują je fixture i API. Reset przy jakimkolwiek zamówieniu daje `409 seed_blocked_by_orders` przed zmianą danych. Sześć nowych pustych tabel należy do jawnego `TRUNCATE ... RESTRICT`, aby PostgreSQL dopuścił reset katalogu bez `CASCADE`. Uzasadnienie wyjątku: [seeder-maintenance.md](seeder-maintenance.md).
+
+Przed i podczas wdrożenia sprawdzono `protected-area-check`: lista chroniona jest pusta. Pozostają migracja i odbiór zdalnej bazy, frontend i rzeczywisty adapter płatności. Lokalny test nie zamyka tych etapów.

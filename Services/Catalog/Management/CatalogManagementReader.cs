@@ -23,7 +23,7 @@ public sealed class CatalogManagementReader(AppDbContext db, TimeProvider clock)
     }
     public static AdminVariantRow VariantRow(ProductVariant v) => new(v.Id, v.ProductId, v.SKU, v.Status.ToString(), v.Version,
         v.Description, v.ShortDescription, v.ImageUrls, v.CreatedAt, v.UpdatedAt, v.PublishedAt);
-    public static AdminStock? StockRow(VariantStock? s) => s is null ? null : new(s.Id, s.VariantId, s.QuantityOnHand, s.Version, s.CreatedAt, s.UpdatedAt);
+    public static AdminStock? StockRow(VariantStock? s, int reserved = 0) => s is null ? null : new(s.Id, s.VariantId, s.QuantityOnHand, s.Version, s.CreatedAt, s.UpdatedAt, reserved);
     public static AdminCategory CategoryRow(Category c) => new(c.Id, c.DisplayName, c.Slug, c.ParentId, c.Version, c.CreatedAt, c.UpdatedAt);
 
     public async Task<CatalogResult> ProductsAsync(AdminProductSearchRequest? r, CancellationToken ct)
@@ -76,10 +76,12 @@ public sealed class CatalogManagementReader(AppDbContext db, TimeProvider clock)
         var count = await query.CountAsync(ct);
         var variants = await query.OrderBy(v => v.SKU).ThenBy(v => v.Id).Skip((page - 1) * size).Take(size).ToArrayAsync(ct);
         var ids = variants.Select(v => v.Id).ToArray();
-        var prices = await CurrentVariantPrices.Query(db, ids, clock.GetUtcNow().UtcDateTime).Where(p => p.Currency == "PLN").ToDictionaryAsync(p => p.VariantId, ct);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var prices = await CurrentVariantPrices.Query(db, ids, now).Where(p => p.Currency == "PLN").ToDictionaryAsync(p => p.VariantId, ct);
+        var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(db, ids, now, ct);
         var stocks = await db.VariantStocks.AsNoTracking().Where(s => ids.Contains(s.VariantId)).ToDictionaryAsync(s => s.VariantId, ct);
         var items = variants.Select(v => new AdminVariantSummary(VariantRow(v), prices.GetValueOrDefault(v.Id)?.SellingAmount,
-            "PLN", StockRow(stocks.GetValueOrDefault(v.Id)))).ToArray();
+            "PLN", StockRow(stocks.GetValueOrDefault(v.Id), reserved.GetValueOrDefault(v.Id)))).ToArray();
         return new(200, new AdminPage<AdminVariantSummary>(items, Pagination(page, size, count)));
     }
     public async Task<CatalogResult> VariantAsync(Guid id, CancellationToken ct)
@@ -87,14 +89,17 @@ public sealed class CatalogManagementReader(AppDbContext db, TimeProvider clock)
         var v = CatalogCommandStore.Found(await db.ProductVariants.AsNoTracking().SingleOrDefaultAsync(v => v.Id == id, ct), "variant");
         var version = await db.Products.Where(p => p.Id == v.ProductId).Select(p => p.Version).SingleAsync(ct);
         var pairs = await db.VariantAttributePairs.Where(l => l.VariantId == id).OrderBy(l => l.AttributePairId).Select(l => l.AttributePairId).ToArrayAsync(ct);
-        var price = await CurrentVariantPrices.Query(db, [id], clock.GetUtcNow().UtcDateTime).Where(p => p.Currency == "PLN").SingleOrDefaultAsync(ct);
+        var now = clock.GetUtcNow().UtcDateTime;
+        var price = await CurrentVariantPrices.Query(db, [id], now).Where(p => p.Currency == "PLN").SingleOrDefaultAsync(ct);
+        var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(db, [id], now, ct);
         var stock = await db.VariantStocks.AsNoTracking().SingleOrDefaultAsync(s => s.VariantId == id, ct);
-        return new(200, new AdminVariantDetails(VariantRow(v), version, pairs, price?.SellingAmount, "PLN", StockRow(stock)));
+        return new(200, new AdminVariantDetails(VariantRow(v), version, pairs, price?.SellingAmount, "PLN", StockRow(stock, reserved.GetValueOrDefault(id))));
     }
     public async Task<CatalogResult> StockAsync(Guid id, CancellationToken ct)
     {
         if (!await db.ProductVariants.AnyAsync(v => v.Id == id, ct)) throw new CatalogValidation("variant_not_found", status: 404);
-        return new(200, new AdminStockResponse(id, StockRow(await db.VariantStocks.AsNoTracking().SingleOrDefaultAsync(s => s.VariantId == id, ct))));
+        var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(db, [id], clock.GetUtcNow().UtcDateTime, ct);
+        return new(200, new AdminStockResponse(id, StockRow(await db.VariantStocks.AsNoTracking().SingleOrDefaultAsync(s => s.VariantId == id, ct), reserved.GetValueOrDefault(id))));
     }
     public async Task<CatalogResult> CategoriesAsync(Guid? id, CancellationToken ct)
     {

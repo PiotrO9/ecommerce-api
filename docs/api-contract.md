@@ -14,10 +14,46 @@ Prefiks administracji: `/api/v1/web/admin`. W kodzie są zapisy produktów/waria
 - `GET /products/{id}/publication-readiness` ma paginowane szczegóły wariantów; `/variants/{id}/publication-readiness` ocenia jeden wariant. Wynik ogólny dotyczy całego produktu, nie tylko strony. Brak ceny PLN blokuje wariant; produkt wymaga kategorii i opublikowanego wariantu. Opisy, zdjęcia i magazyn generują ostrzeżenia.
 - Kategorie: administracyjne GET drzewa/szczegółów, POST z `displayName`, opcjonalnym `slug`/`parentId`, PUT metadanych oraz `/parent`. `DELETE /categories/{id}?expectedVersion=...` usuwa wyłącznie pusty liść. Drzewo bez paginacji.
 - Słownik: GET/POST `/attribute-keys`, PUT `/attribute-keys/{id}` (`displayName`, wersja), GET/POST `/attribute-keys/{id}/values` (`value`). Kod jest niezmienny; pary NFC+trim są współdzielone i wrażliwe na wielkość liter. Listy mają paginację 1/20, maksymalnie 100.
-- `GET /variants/{id}/stock` zwraca `{variantId,stock}`; `stock` to `null` albo `{id,variantId,quantityOnHand,version,createdAt,updatedAt}`. PUT wymaga jawnych `quantityOnHand`, `expectedVersion` oraz `reason`; pierwsza wersja to `null`, kolejne są liczbą. Ilość nieujemna, powód 1–120 znaków.
+- `GET /variants/{id}/stock` zwraca `{variantId,stock}`; `stock` to `null` albo `{id,variantId,quantityOnHand,version,createdAt,updatedAt,quantityReserved,quantityAvailable}`. Te dane są także w administracyjnych odczytach wariantów. PUT wymaga jawnych `quantityOnHand`, `expectedVersion` i `reason`; pierwsza wersja to `null`, kolejne są liczbą. Ilość nieujemna, powód 1–120 znaków. Ilość niższa od aktywnych rezerwacji daje `409 stock_below_reservations`.
 
 Wszystkie nowe trasy wymagają administratora, a mutacje dodatkowo `X-Requested-With: XMLHttpRequest` i UUID w `Idempotency-Key`. POST wyszukiwania jest odczytem bez klucza operacji. Mutacja zwraca `{replayed,id,version,productId,productVersion,variantId,variantVersion}`; pola niedotyczące operacji są null. Tworzenie `201`, ponowienie/odnalezienie w słowniku/edycja `200`, usunięcie kategorii `204`. Powtórzenie tego samego klucza z innymi danymi lub nieaktualna wersja daje `409`. Odpowiedzi mają `no-store`, JSON odrzuca nieznane pola. Wersja ceny pozostaje `expectedPriceChangeId`; nowe wersje opisowe nie zastępują dotychczasowego kontraktu cen/promocji. Nie ma DELETE produktu/wariantu ani automatycznego kończenia promocji podczas ukrycia.
 
+
+## Zamówienia i magazyn — 01.11.2026
+
+Wymaga migracji `20261101191527_AddInventoryReservations` i poprzedzających migracji; nie zastosowano jej w zdalnym Supabase. To minimalne zamówienie towarów, bez adresu, dostawy i Tpay; [reguły](inventory-model.md).
+
+Wszystkie trasy `/api/v1/web/orders` wymagają sprawdzonego konta i mają `Cache-Control: no-store`, również przy błędach MVC/routingu. Zapis wymaga `X-Requested-With: XMLHttpRequest` i ma limit `shopping-write` (`429 shopping_rate_limited`). Gość otrzymuje `401`, cudze zamówienie `404`, awaria Auth/bazy `503`. Nie ma fallbacku do gościa.
+
+| Metoda i trasa | Działanie |
+| --- | --- |
+| `POST /api/v1/web/orders` | Zamówienie całego koszyka konta, rezerwacja i opróżnienie koszyka atomowo; `201`, ponowienie `200` |
+| `GET /api/v1/web/orders/{id}` | Własne zamówienie i termin rezerwacji |
+| `GET /api/v1/web/orders?page=1&pageSize=20` | Własna historia, najnowsze pierwsze; pageSize 1–100; `{items,page,pageSize,totalItems}` |
+| `POST /api/v1/web/orders/{id}/cancel` | Anulowanie oczekującego zamówienia, bez body; ponowienie także `200` |
+
+Utworzenie wymaga UUID `Idempotency-Key` i JSON-u maksymalnie 32 KiB:
+
+```json
+{
+  "expectedScopeId": "UUID-z-GET-cart",
+  "expectedVersion": 1,
+  "items": [{
+    "variantId": "UUID-wariantu",
+    "quantity": 2,
+    "priceChangeId": "UUID-z-cart.items[].variant.priceChangeId",
+    "unitPrice": 79.99
+  }]
+}
+```
+
+UUID-y w przykładzie są opisowymi placeholderami. Przekaż dokładny zakres, wersję i wszystkie pozycje bieżącego koszyka. Nieznane pola JSON, duplikaty, ilości poza 1–99, pusty koszyk i ponad 100 wariantów są odrzucane. Backend sprawdza aktualną ofertę, cenę i dostępność pod blokadą.
+
+Odpowiedź: `{id,status,createdAt,expiresAt,reservationStatus,goodsTotal,currency,items,replayed}`. Pozycja: `{variantId,name,sku,quantity,unitPrice}` ze snapshotu. Suma to wyłącznie towary PLN, bez dostawy. Termin domyślnie 15 minut. Ponowienie identycznej komendy zwraca to samo zamówienie, aktualny status i pierwotny termin, także przy pustym już koszyku. Inna treść pod tym samym kluczem: `409 idempotency_key_conflict`.
+
+Inne konflikty: `shopping_scope_changed`, `shopping_version_conflict`, `cart_changed`, `price_changed`, `stock_unknown`, `out_of_stock`, `insufficient_stock`, `unavailable`, `order_not_cancellable`. Odrzucenie zachowuje koszyk. Błąd domeny ma `{code,message}`, automatyczna walidacja MVC standardowe ProblemDetails. Nie ma endpointu klienta potwierdzającego płatność; serwerowe `ConfirmPaymentAsync` czeka na zaufany adapter. Spóźnione zdarzenie daje `PaymentReview` bez pomniejszenia stanu.
+
+Szczegóły produktu, koszyk i ulubione zwracają wariant z dodatkowym `quantityAvailable`: ilość po odjęciu niewygasłych rezerwacji, `null` dla nieznanego stanu. `quantityOnHand` pozostaje ilością ewidencyjną. `availability` i `canCheckout` stosują dostępność; koszyk nadal nie rezerwuje.
 
 ## Koszyk i ulubione — 01.11.2026
 

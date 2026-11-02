@@ -14,6 +14,8 @@ Migrację sprawdzono na nowej izolowanej bazie PostgreSQL 17. **Nie zastosowano 
 
 ## Stan potwierdzony w kodzie i bazie
 
+Magazyn — migracja `20261101191527_AddInventoryReservations` dodaje `orders`, `order_items`, `stock_reservations`, `stock_reservation_items`, `stock_movements`, `inventory_payment_receipts` w `app`. Wszystkie mają RLS i odebrane uprawnienia ról Data API/PUBLIC. FK zachowują historię przez `RESTRICT`, również przy próbie usunięcia konta z zamówieniami. Odroczone triggery sprawdzają graf i dostępność, zwykłe blokują mutację historii i niedozwolone przejścia. Nie zmieniono schematu ani danych zdalnego Supabase. `Down` odrzuca cofnięcie przy istniejących zamówieniach; użyć migracji naprawczej do przodu. Szczegóły: [magazyn](inventory-model.md).
+
 - `Program.cs` odczytuje `ConnectionStrings:SupabaseDatabase` i rejestruje `AppDbContext` z dostawcą Npgsql. Lokalnie wartość jest przechowywana w .NET user-secrets, nie w `appsettings.json` ani repozytorium.
 - `Entities/UserProfile.cs` określa model w C#. `Data/AppDbContext.cs` mapuje go jawnie na `app.user_profiles`, kolumny `user_id`, `first_name`, `last_name`, klucz główny `user_id` i klucz obcy do `auth.users.id` z usuwaniem kaskadowym.
 - `Data/AuthUserReference.cs` służy wyłącznie do mapowania relacji. `auth.users` jest wyłączona z migracji EF, ponieważ jej właścicielem jest Supabase Auth. Nie tworzymy ani nie zmieniamy jej przez migracje aplikacji.

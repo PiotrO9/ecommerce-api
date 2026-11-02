@@ -23,7 +23,10 @@ public sealed record ProductVariantResponse(
     DateTime? PublishedAt,
     IReadOnlyList<ProductVariantAttributeResponse> Attributes,
     int? QuantityOnHand,
-    IReadOnlyList<ProductVariantPriceResponse> CurrentPrices);
+    IReadOnlyList<ProductVariantPriceResponse> CurrentPrices)
+{
+    public int? QuantityAvailable { get; init; } = QuantityOnHand;
+}
 
 public sealed record ProductVariantAttributeResponse(string Code, string DisplayName, string Value);
 

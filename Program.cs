@@ -90,7 +90,7 @@ builder.Services.AddRateLimiter(options =>
     options.OnRejected = async (rejection, ct) =>
     {
         var path = rejection.HttpContext.Request.Path;
-        if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping"))
+        if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping") || path.StartsWithSegments("/api/v1/web/orders"))
         {
             rejection.HttpContext.Response.Headers.CacheControl = "no-store";
             await rejection.HttpContext.Response.WriteAsJsonAsync(
@@ -152,6 +152,13 @@ builder.Services.AddScoped<ShoppingOfferReader>();
 builder.Services.AddScoped<GuestShoppingSessionService>();
 builder.Services.AddScoped<CartService>();
 builder.Services.AddScoped<FavoritesService>();
+builder.Services.AddOptions<E_commerce_backend.Contracts.Inventory.InventoryOptions>()
+    .BindConfiguration("Inventory")
+    .Validate(o => o.ReservationMinutes is >= 1 and <= 120 && o.ExpiryIntervalSeconds is >= 1 and <= 300,
+        "Inventory: ReservationMinutes 1–120, ExpiryIntervalSeconds 1–300.")
+    .ValidateOnStart();
+builder.Services.AddScoped<E_commerce_backend.Services.Inventory.InventoryOrderService>();
+builder.Services.AddHostedService<E_commerce_backend.Services.Inventory.ReservationExpiryWorker>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(
@@ -207,8 +214,11 @@ if (app.Environment.IsDevelopment())
                 return Results.BadRequest(new { error });
             }
 
-            var result = await seeder.SeedAsync(options!, cancellationToken);
-            return Results.Ok(result);
+            try { return Results.Ok(await seeder.SeedAsync(options!, cancellationToken)); }
+            catch (InventorySeedBlockedException)
+            {
+                return Results.Conflict(new { code = "seed_blocked_by_orders", message = "Reset katalogu jest zablokowany, ponieważ istnieją zamówienia." });
+            }
         });
     }
 }
@@ -217,7 +227,7 @@ if (app.Environment.IsDevelopment())
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path;
-    if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping"))
+    if (path.StartsWithSegments("/api/v1/web/cart") || path.StartsWithSegments("/api/v1/web/favorites") || path.StartsWithSegments("/api/v1/web/shopping") || path.StartsWithSegments("/api/v1/web/orders"))
         context.Response.Headers.CacheControl = "no-store";
     await next(context);
 });

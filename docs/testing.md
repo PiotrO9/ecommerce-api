@@ -2,6 +2,18 @@
 
 Cel: opisać układ testów i sposób ich uruchamiania w tym repozytorium.
 
+## Magazyn i minimalne zamówienie — 01.11.2026
+
+Weryfikacja lokalna: `tests/inventory/verify-local.ps1`. Skrypt tworzy własny PostgreSQL 17 na wolnym porcie i bazę `ecomm_test_inventory`, przygotowuje minimalne lokalne referencje Auth, buduje Release, stosuje migracje od zera i uruchamia cały zestaw xUnit. Nie tworzy kont w Supabase i nie używa zewnętrznego Auth; HTTP korzysta z istniejącej atrapy. Na końcu zatrzymuje własny PostgreSQL i odtwarza zmienną środowiskową. Logi i TRX są w `.local/test-results/inventory-*`.
+
+`InventoryPostgresTests` i `InventoryHttpTests` dodają 13 scenariuszy: ostatnia sztuka, równoczesne ponowienia bez przedłużania terminu, akceptacja ceny, wielopozycyjny rollback i błąd bazy przy faktycznym commit po opróżnieniu koszyka, rozliczenie raz, kontrola kwoty/zdarzenia, wygasanie bez workera, spóźniona płatność po rezerwacji innego klienta, wyścig płatności z anulowaniem, korekta administratora i SQL poniżej rezerwacji, blokada seedera, niezmienność historii, dwa rzeczywiście uruchomione workery, brak/zero stanu i ukrycie, cena zerowa i snapshot po zmianie ceny. HTTP sprawdza konto, właściciela A/B, CSRF, idempotencję, nieznane pola, 400/415, no-store, paginację, prawdziwy middleware 429 i awarię Auth bez fallbacku. Nie istnieje endpoint klienta potwierdzający płatność.
+
+Symulacja upływu czasu w fixture zmienia termin wyłącznie uprzywilejowanym SQL w izolowanej bazie i transakcyjnie przywraca trigger tożsamości po wykonaniu odroczonych sprawdzeń. Aplikacja nie ma przełącznika obchodzącego termin. Cleanup testów jawnie czyści sześć tabel zakupowych; seeder aplikacji odmawia takiego resetu przy zamówieniach.
+
+Wynik końcowy: **175/175 testów, 0 pominiętych; build Release: 0 błędów i ostrzeżeń**. Skrypt potwierdził migrację od zera, Down/Up przy pustych tabelach zakupowych i istniejącym katalogu, identyczny skrót wszystkich pól historii cen oraz brak różnic modelu EF. Cofnięcie przy rzeczywistych zamówieniach jest blokowane w migracji. Ponowny odbiór 02.11.2026: również 175/175. Raport ostatniego przebiegu: `.local/test-results/inventory-20261102-113016-49d74577/inventory.trx` oraz sąsiednie logi. Własny PostgreSQL został zatrzymany po odbiorze.
+
+Granica dowodu: lokalny PostgreSQL i rzeczywisty pipeline HTTP z atrapą zewnętrznego Auth. Nie zastosowano nowej migracji w Supabase, nie odebrano frontendu ani Tpay, nie sprawdzono rzeczywistych powiadomień płatności i nie wykonano pomiaru przepustowości globalnej blokady magazynu. [Reguły i granice](inventory-model.md).
+
 ## Koszyk — odbiór HTTPS z rzeczywistym Auth (01.11.2026)
 
 Wynik: **54/54 sprawdzenia zaliczone**, przez uruchomioną aplikację ASP.NET Core, lokalne HTTPS i rzeczywisty Supabase Auth, bez atrapy Auth. Dwa tymczasowe konta utworzono przez Admin API z `email_confirm=true`, bez wysyłania wiadomości i bez używania istniejących haseł klientów. Katalog, kopie UUID kont dla FK oraz zmiany ceny, magazynu, widoczności i terminu gościa istniały wyłącznie w izolowanym PostgreSQL `ecomm_test_shopping_live`. Nie stosowano migracji ani nie zmieniano katalogu w zdalnym Supabase.

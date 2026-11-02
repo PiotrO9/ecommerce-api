@@ -2,6 +2,8 @@
 
 Cel: opisać wdrożony backend modułów 4.1–4.3 z [planu backendu](project-direction.md), uzgodnione reguły i pozostały odbiór. Dokument powstał na prośbę właściciela projektu 01.11.2026.
 
+Rozszerzenie magazynu 01.11.2026: sam koszyk nadal nie rezerwuje. Wariant w koszyku/ulubionych zwraca także `quantityAvailable`, a status dostępności i `canCheckout` odejmują aktywne niewygasłe rezerwacje. Minimalne `POST /orders` tworzy rezerwację z całego koszyka konta i opróżnia go w tej samej transakcji; błąd zachowuje koszyk, ponowienie nie tworzy drugiego zamówienia. Wymaga również migracji `AddInventoryReservations`, niezastosowanej w zdalnym Supabase. Dawne wyniki KU opisują stan sprzed tego rozszerzenia; bieżące reguły i testy są w [magazynie](inventory-model.md) oraz [testing.md](testing.md).
+
 **Status 01.11.2026: backend KU1–KU4 wdrożony i sprawdzony automatycznie na PostgreSQL 17; dodatkowo 54/54 sprawdzenia przez rzeczywiste HTTPS i Supabase Auth, bez atrapy Auth.** Koszyk gościa pozostaje osobno, po logowaniu widoczny jest wyłącznie koszyk konta. Ulubione konkretnych wariantów są dostępne tylko na koncie. Migracja `20261101132248_AddShoppingCartsAndFavorites` została zastosowana wyłącznie lokalnie; nie zastosowano jej w Supabase. KU0 i KU5 pozostają częściowo otwarte: adresy środowisk, frontend oraz odbiór zdalnej bazy po migracji. Szczegóły wyników są w [testing.md](testing.md#koszyk--odbiór-https-z-rzeczywistym-auth-01112026).
 
 ## 1. Analiza stanu wyjściowego

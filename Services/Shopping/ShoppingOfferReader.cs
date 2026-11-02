@@ -26,12 +26,14 @@ public sealed class ShoppingOfferReader(AppDbContext db)
             }).ToListAsync(ct);
         var prices = await CurrentVariantPrices.Query(db, variants.Select(v => v.Id).ToArray(), now)
             .Where(p => p.Currency == "PLN").Include(p => p.PriceReduction).ToDictionaryAsync(p => p.VariantId, ct);
+        var reserved = await E_commerce_backend.Services.Inventory.InventoryAvailability.ReservedAsync(db, ids, now, ct);
         return variants.Where(v => prices.ContainsKey(v.Id)).ToDictionary(v => v.Id, v =>
         {
             var p = prices[v.Id];
             return new ShoppingVariantResponse(v.Id, v.ProductId, v.Name, v.Slug, v.SKU,
                 v.ImageUrls.FirstOrDefault(), v.Attributes, v.Quantity, p.Id,
-                PublicPriceBuilder.Build(p.SellingAmount, p.BaseAmount, p.Currency, v.Id, p.PriceReduction));
+                PublicPriceBuilder.Build(p.SellingAmount, p.BaseAmount, p.Currency, v.Id, p.PriceReduction))
+                { QuantityAvailable = v.Quantity - reserved.GetValueOrDefault(v.Id) };
         });
     }
 
@@ -39,8 +41,8 @@ public sealed class ShoppingOfferReader(AppDbContext db)
     {
         null => "unavailable",
         { QuantityOnHand: null } => "stock_unknown",
-        { QuantityOnHand: <= 0 } => "out_of_stock",
-        _ when variant.QuantityOnHand < quantity => "insufficient_stock",
+        { QuantityAvailable: <= 0 } => "out_of_stock",
+        _ when variant.QuantityAvailable < quantity => "insufficient_stock",
         _ => "available"
     };
 }

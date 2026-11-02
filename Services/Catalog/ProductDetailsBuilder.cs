@@ -6,7 +6,7 @@ namespace E_commerce_backend.Services.Catalog;
 
 public static class ProductDetailsBuilder
 {
-    public static ProductDetailsResponse? Build(Product? product, DateTime now)
+    public static ProductDetailsResponse? Build(Product? product, DateTime now, IReadOnlyDictionary<Guid, int>? reserved = null)
     {
         if (product is null || product.Status != CatalogStatus.Published)
         {
@@ -16,7 +16,7 @@ public static class ProductDetailsBuilder
         var variants = product.Variants
             .Where(variant => variant.Status == CatalogStatus.Published)
             .OrderBy(variant => variant.SKU, StringComparer.Ordinal)
-            .Select(variant => BuildVariant(variant, now))
+            .Select(variant => BuildVariant(variant, now, reserved))
             .OfType<ProductVariantResponse>()
             .ToArray();
 
@@ -44,7 +44,7 @@ public static class ProductDetailsBuilder
             categories, variants);
     }
 
-    private static ProductVariantResponse? BuildVariant(ProductVariant variant, DateTime now)
+    private static ProductVariantResponse? BuildVariant(ProductVariant variant, DateTime now, IReadOnlyDictionary<Guid, int>? reserved)
     {
         var currentPrices = variant.PriceChanges
             .Where(price => price.EffectiveAt <= now)
@@ -76,6 +76,7 @@ public static class ProductDetailsBuilder
         return new ProductVariantResponse(
             variant.Id, variant.SKU, variant.Description, variant.ShortDescription,
             variant.ImageUrls, variant.CreatedAt, variant.UpdatedAt, variant.PublishedAt,
-            attributes, variant.Stock?.QuantityOnHand, currentPrices);
+            attributes, variant.Stock?.QuantityOnHand, currentPrices)
+            { QuantityAvailable = variant.Stock?.QuantityOnHand - (reserved?.GetValueOrDefault(variant.Id) ?? 0) };
     }
 }

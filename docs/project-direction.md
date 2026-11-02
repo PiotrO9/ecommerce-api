@@ -15,7 +15,7 @@ Cel: mieć w jednym miejscu kolejność modułów, listę prac i widoczny postę
 
 Backend ma już ASP.NET Core na .NET 10, lokalny Docker, EF Core z PostgreSQL, profil użytkownika oraz rejestrację, logowanie i reset hasła przez Supabase Auth. E-mail resetu jest wysyłany przez Mailtrap Transactional Email API. Istnieje projekt testów xUnit. Limity żądań obejmują reset hasła oraz zapisy koszyka, ulubionych i inicjalizację gościa.
 
-Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Backend zarządzania ofertą obejmuje tworzenie, edycję, publikację i ukrywanie produktów/wariantów, kategorie, cechy oraz magazyn, z testami PostgreSQL; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Nie ma zamówień, promocji całego katalogu, płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
+Katalog, magazyn i historia cen mają już encje, mapowanie EF Core oraz migrację zastosowaną w Supabase 22 października 2026 r. API udostępnia odczyt kategorii, szczegółów opublikowanego produktu, ogólnej listy produktów oraz listy z poddrzewa kategorii; obie listy umożliwiają wyszukiwanie po nazwie i SKU oraz filtrowanie po dowolnych parach cech wariantu i cenie PLN. Działa administracyjna zmiana zwykłych cen PLN, promocje procentowe/kwotowe produktu i kolekcji, zapisane odniesienie wcześniejszej ceny oraz kontrola uprawnienia z app.administrators. Migracje promocji zastosowano w Supabase; odbiór HTTPS użył prawdziwego Supabase Auth i izolowanego lokalnego PostgreSQL. Backend zarządzania ofertą obejmuje tworzenie, edycję, publikację i ukrywanie produktów/wariantów, kategorie, cechy oraz magazyn, z testami PostgreSQL; historia cen i promocje mają testy niezmienności, konkurencji i ponowień. Są minimalne zamówienia z koszyka konta, rezerwacje, wygaszanie i własna historia. Nie ma pełnego checkoutu, promocji całego katalogu, integracji płatności, dostawy ani panelu administracyjnego. Nie ma też logowania Google, Redis, Supabase Storage, GlitchTip, zadania czyszczącego ani `/healthz`. Frontend jest wskazany w README jako osobne repozytorium; decyzja o docelowym układzie repozytoriów pozostaje otwarta.
 
 ## Mniejsze etapy i postęp
 
@@ -44,9 +44,9 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 | **4.2 Koszyk konta** | Klient widzi wyłącznie koszyk konta; koszyk gościa pozostaje osobno, bez scalania | W toku: backend, prawdziwy Auth i dwie sesje sprawdzone w odbiorze 54/54 HTTPS; pozostają frontend i migracja zdalnej bazy |
 | **4.3 Ulubione** | Wyłącznie zalogowany klient zapisuje konkretne warianty bez duplikatów | W toku: backend i testy gotowe; brak odbioru frontendu i migracji Supabase |
 | **4.4 Logowanie Google** | Konto Google prowadzi do właściwego profilu i zasobów klienta | Nie rozpoczęto |
-| **5.1 Zamówienie i checkout** | Zalogowany klient zapisuje zamówienie z ceną i wariantem z chwili zakupu | Nie rozpoczęto |
-| **5.2 Kontrola magazynu** | Równoległe zakupy i nieudana płatność nie psują stanu | W toku: model stanu wariantu; brak rezerwacji i kontroli zakupów |
-| **5.3 Historia zakupów** | Klient widzi tylko swoje zamówienia | Nie rozpoczęto |
+| **5.1 Zamówienie i checkout** | Zalogowany klient zapisuje zamówienie z ceną i wariantem z chwili zakupu | W toku: minimalne zamówienie i snapshot są w kodzie; brak adresu, dostawy i pełnego checkoutu |
+| **5.2 Kontrola magazynu** | Równoległe zakupy i nieudana płatność nie psują stanu | Gotowe w kodzie i odbiorze lokalnym: rezerwacje, wygaszanie, anulowanie i rozliczenie; pozostają migracja zdalna, frontend i adapter płatności |
+| **5.3 Historia zakupów** | Klient widzi tylko swoje zamówienia | Odczyt własnych zamówień w API; brak frontendu i odbioru środowiskowego |
 | **6.1 Tpay sandbox** | Testowa płatność bezpiecznie aktualizuje zamówienie | Nie rozpoczęto |
 | **6.2 Symulowana dostawa** | Zamówienie przechodzi przez ustalone statusy kurierskie | Nie rozpoczęto |
 | **6.3 E-maile transakcyjne** | Uzgodnione zdarzenia wysyłają odpowiednie wiadomości | Nie rozpoczęto |
@@ -62,7 +62,7 @@ Numery przed kropką wskazują moduł opisany dalej. Etapy w ramach modułu są 
 
 Pierwszy praktyczny ciąg prac to **1.1 → 1.2 → 1.3 → 2.2 → 2.3 → 2.4 → 7.1 → 3.1 → 2.5 → 2.6 → 2.7**. Wstępne ustalenie pól produktu w **2.1** jest zakończone; implementacja pozostaje w **2.2**. Numery 7.1 i 3.1 pojawiają się przed administracyjnym zapisem oferty, bo potrzebne są uprawnienia administratora i historia cen. Próbę **0.4** wykonajcie po ustaleniu środowiska z **1.3**. Etapy **8.1** i potrzebną część **8.2** warto włączyć przed wspólnym środowiskiem testowym. Pozostałe zależności i szczegółowe prace opisują moduły niżej.
 
-**Długofalowa ścieżka:** przetestować pozostałe ograniczenia katalogu na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie PLN oraz promocje jednego produktu są wdrożone; granice weryfikacji opisują [model cen](pricing-model.md) i [plan promocji](promotion-implementation-plan.md). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Pozostają m.in. promocje całego katalogu (3.2), odbiór koszyka z frontendem (4.1–4.2), zamówienie z pozycjami (5.1) oraz dane dostawy i płatności (6).
+**Długofalowa ścieżka:** przetestować pozostałe ograniczenia katalogu na PostgreSQL, w tym wyzwalacze i równoczesne zapisy, a następnie wdrożyć operacje katalogu oraz publikacji. Sortowanie i filtrowanie po cenie PLN oraz promocje jednego produktu są wdrożone; granice weryfikacji opisują [model cen](pricing-model.md) i [plan promocji](promotion-implementation-plan.md). Podstawowe modele [magazynu](inventory-model.md), [katalogu i kategorii](catalog-model.md) oraz [cen i historii](pricing-model.md) są opisane i zmapowane w EF Core. Pozostają m.in. promocje całego katalogu (3.2), odbiór koszyka z frontendem (4.1–4.2), pełny checkout z adresem (5.1) oraz dane dostawy i integracja płatności (6).
 
 ### Kolejne ulepszenia odczytu katalogu
 
@@ -149,7 +149,7 @@ Administrację ofertą wdrożono według [catalog-management-implementation-plan
 - [x] Dodać sortowanie list po nazwie i dacie publikacji.
 - [x] Wdrożyć uzgodniony na początek odczyt cenowy w PLN i regułę sortowania po najniższej bieżącej cenie pasującego wariantu; przed obsługą wielu walut rozszerzyć tę regułę.
 - [x] Ustalić i wdrożyć ranking trafności wyników wyszukiwania dla niepustego `q`.
-- [ ] Uwzględnić ustalony stan magazynowy per wariant w przyszłej logice zakupu; brak znanego stanu ma blokować zakup.
+- [x] Uwzględnić stan magazynowy per wariant przy zamówieniu; brak znanego stanu blokuje zakup, a aktywne rezerwacje zmniejszają dostępność. Potwierdzają to testy PostgreSQL magazynu.
 - [ ] Dodać testy reguł katalogu i sprawdzić rzeczywiste połączenie widoków frontendu z API.
 
 **Warunek zakończenia:** można wprowadzić produkt z wariantem i kategorią, znaleźć go na liście oraz otworzyć jego szczegóły.
@@ -198,13 +198,15 @@ Stan 01.11.2026: [backend koszyka i ulubionych](cart-favorites-implementation-pl
 
 ## 5. Checkout, zamówienia i magazyn
 
+Stan 01.11.2026: [magazyn](inventory-model.md) ma rezerwacje przy zamówieniu z koszyka konta, stały termin (domyślnie 15 minut), wygaszanie, anulowanie i jednokrotne serwerowe rozliczenie. Spóźniona płatność prowadzi do `PaymentReview`, bez zabierania towaru kolejnemu klientowi. API udostępnia własną historię; cena, nazwa, SKU i cechy są snapshotem. Nowa migracja pozostaje lokalna. Nie zamyka to pełnego checkoutu, adresów, Tpay, dostawy ani frontendu. Koszyk nie rezerwuje.
+
 - [x] Ustalić, że stan magazynowy jest przypisany osobno do wariantu. Propozycja tabeli i decyzje otwarte są w [modelu magazynu](inventory-model.md).
 - [ ] Ustalić kroki checkoutu, wymagane dane klienta i adresu oraz sposób potwierdzania finalnej kwoty.
-- [ ] Dodać model zamówienia i pozycji, który zachowuje wybrany wariant, cenę i inne potrzebne dane z chwili zakupu.
-- [ ] Utworzenie zamówienia ograniczyć do zalogowanego klienta i zweryfikować właściciela przy odczycie historii.
-- [ ] Ustalić moment rezerwacji lub pomniejszenia stanu, czas rezerwacji i reakcję na porzucony koszyk, nieudaną płatność oraz równoległe zakupy ostatniej sztuki.
-- [ ] Wdrożyć spójne zmiany zamówienia i stanu magazynowego oraz ochronę przed podwójnym złożeniem tego samego zamówienia.
-- [ ] Udostępnić historię zamówień klienta i testy najważniejszych scenariuszy poprawnych oraz błędnych.
+- [x] Dodać minimalny model zamówienia i pozycji ze snapshotem wariantu, ceny, nazwy, SKU i cech; adres pozostaje osobno.
+- [x] Ograniczyć zapis i odczyt do zweryfikowanego konta; sprawdzić izolację właścicieli przez HTTP.
+- [x] Wdrożyć rezerwację przy zamówieniu, domyślnie 15 minut; anulowanie/wygaśnięcie zwalnia, serwerowe potwierdzenie rozlicza raz. Szczegóły w modelu magazynu.
+- [x] Wdrożyć atomowy zapis zamówienia/rezerwacji/opróżnienia koszyka i ochronę ponowień.
+- [x] Udostępnić API własnej historii i testy PostgreSQL/HTTP; frontend pozostaje otwarty.
 
 **Warunek zakończenia:** zalogowany użytkownik może złożyć zamówienie na dostępny produkt, a jego historia i stan magazynu pozostają spójne.
 
@@ -259,7 +261,7 @@ Stan 01.11.2026: [backend koszyka i ulubionych](cart-favorites-implementation-pl
 | Docelowy układ repozytoriów, framework frontendu i adresy środowisk | 1; zasady cookies przed 4 | Otwarta |
 | Format kwot/waluta oraz zasady wariantów i kategorii | 2–3 | Otwarta |
 | Kolekcje, nakładanie promocji, zaokrąglanie i interpretacja wymogu Omnibus | 3 | Otwarta |
-| Rezerwacja stanu i reakcja na nieudaną płatność | 5–6 | Otwarta |
+| Rezerwacja stanu i reakcja na nieudaną płatność | 5–6 | Pierwsza implementacja: rezerwacja przy zamówieniu, domyślnie 15 minut; pozostaje adapter płatności i odbiór środowiskowy |
 | Statusy dostawy, przewoźnik i zakres danych adresowych | 5–6 | Otwarta |
 | SMTP czy Mailtrap API oraz lista wiadomości | 6 | Otwarta |
 | Zakres danych usuwanych po 30 dniach | 8: zadanie cykliczne | Otwarta |

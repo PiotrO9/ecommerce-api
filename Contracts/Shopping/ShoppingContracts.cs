@@ -25,7 +25,10 @@ public sealed record ShoppingVersionResponse(Guid ScopeId, long Version);
 public sealed record GuestShoppingSessionResponse(Guid ScopeId, long Version, DateTime ExpiresAt);
 public sealed record ShoppingVariantResponse(Guid VariantId, Guid ProductId, string Name, string Slug,
     string Sku, string? ThumbnailUrl, IReadOnlyList<ProductVariantAttributeResponse> Attributes,
-    int? QuantityOnHand, Guid PriceChangeId, ProductVariantPriceResponse Price);
+    int? QuantityOnHand, Guid PriceChangeId, ProductVariantPriceResponse Price)
+{
+    public int? QuantityAvailable { get; init; } = QuantityOnHand;
+}
 public sealed record CartItemResponse(Guid VariantId, int Quantity, string Availability,
     ShoppingVariantResponse? Variant, decimal? LineAmount);
 public sealed record CartResponse(Guid? ScopeId, long Version, DateTime EvaluatedAt, string Currency,
