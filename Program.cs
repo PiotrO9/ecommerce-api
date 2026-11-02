@@ -159,6 +159,7 @@ builder.Services.AddOptions<E_commerce_backend.Contracts.Inventory.InventoryOpti
     .ValidateOnStart();
 builder.Services.AddScoped<E_commerce_backend.Services.Inventory.InventoryOrderService>();
 builder.Services.AddHostedService<E_commerce_backend.Services.Inventory.ReservationExpiryWorker>();
+builder.Services.AddHostedService<E_commerce_backend.Services.Pricing.PromotionReconciliationWorker>();
 
 builder.Services.AddControllers(options =>
     options.Conventions.Add(new RouteTokenTransformerConvention(

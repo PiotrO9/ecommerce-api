@@ -126,7 +126,7 @@ public sealed class CatalogManagementHttpTests
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(Admin + $"/categories/{category.Id}")).StatusCode);
     }
 
-    private sealed class OfferApp : WebApplicationFactory<Program>
+    internal sealed class OfferApp : WebApplicationFactory<Program>
     {
         public Guid AdminId { get; } = Guid.NewGuid();
         private Guid CustomerId { get; } = Guid.NewGuid();

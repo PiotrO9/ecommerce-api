@@ -441,3 +441,27 @@ pm.environment.set("expectedPrices", JSON.stringify(p.expectedPrices));
 Cechy nadal dodaje się dynamicznymi parami `attributes:[{code,values}]`. Można równocześnie dodać selektor kategorii.
 
 8. `POST {{host}}/admin/promotions/{{promotionId}}/end`, body `{"expectedVersion":{{activePromotionVersion}}}`. Wersja pochodzi z odpowiedzi aktywacji, a nie kolekcji. Produkt usunięty w międzyczasie z kolekcji też odzyska cenę podstawową. Szczegóły publicznego `reduction` pozostają takie jak dla promocji produktu.
+
+## Dynamiczne promocje katalogu i kategorii — 02.11.2026
+
+Wymaga migracji `20261102113854_AddDynamicPromotions`, sprawdzanej lokalnie; nie zastosowano jej w Supabase. Prefiks `/api/v1/web/admin/promotions`. Sesja administratora i no-store dla wszystkich tras. Zapisy mają `X-Requested-With: XMLHttpRequest` i UUID `Idempotency-Key`.
+
+Nowe scope to `catalog` oraz `category` (z `categoryId`, wraz z podkategoriami). POST szkicu i PUT edycji przyjmują opcjonalne `excludedProductIds` i `excludedVariantIds`. Pozostałe pola reguły jak dotychczas: name, discountType, discountValue; edycja ma expectedVersion. Wszystkie ID to UUID. Nie mieszać categoryId z productId/collectionId. Stare scope product/collection zachowują swój kontrakt i zamrożony skład.
+
+POST `/{id}/preview?page=1&pageSize=20` zwraca dla nowych zakresów `scopeToken`, `eligibleVariants`, `conflictedVariants`, totalVariants i stronicowane items. `expectedPrices` jest puste: do aktywacji przekazujemy token zamiast całej listy cen. canActivate może być true mimo błędnych rabatów; nakładanie kampanii lub pusty zakres blokuje start. `POST /{id}/activate` przyjmuje `{expectedVersion,expectedScopeToken}`. Zmiana cen, zakresu, reguły lub istotnych wyników walidacji daje 409 i wymaga nowego podglądu. Token nie zastępuje autoryzacji.
+
+Nowe odczyty i zapis:
+
+| Trasa | Kontrakt |
+| --- | --- |
+| GET /{id}/exclusions | `{promotionId,version,productIds,variantIds}`. |
+| PUT /{id}/exclusions | `{expectedVersion,productIds,variantIds}`; zastępuje zestaw w szkicu/aktywnej akcji, przelicza ceny. Odpowiedź jak komenda promocji. |
+| GET /conflicts | Opcjonalne promotionId, includeResolved=false, page=1, pageSize=20 (1–100). `{items,page,pageSize,totalItems,totalPages}`. Item: id, promotionId, variantId, otherPromotionId, code, createdAt, updatedAt, resolvedAt. |
+| GET /{id}/variants | page/pageSize; stronicowane okresy udziału z variantId, startedAt, endedAt, priorAmount, referenceStart. Kolejność startedAt DESC, wewnętrzny UUID udziału. |
+| GET / | Dodano scope catalog/category oraz categoryId; nie mieszać selektorów celów. |
+
+Nowe zakresy mają w szczegółach/listach `categoryId`, `activeVariants` i pustą tablicę variants; pełne okresy pobierać osobno. Komendy zwracają `{replayed,promotion}`. Automatyczne wejście/wyjście może zwiększyć version. POST end działa również bez aktywnych udziałów.
+
+Przy niepoprawnym rabacie zachowujemy dotychczasową cenę i zapisujemy konflikt. Naprawa danych automatycznie ponawia ocenę. `active_promotion` blokuje operację; inne przykładowe kody: invalid_discount, missing_price, future_price, unmanaged_discount, incomplete_or_empty_offer_history, not_below_prior_price. Błąd bazy wycofuje całość, również poprawne rabaty z tej komendy.
+
+Zmiany przez administracyjne API katalogu i cen przeliczają promocje w tej samej transakcji. Bezpośredni SQL oznacza trwały znacznik do pracy w tle; odczyt ceny może być wcześniejszy do czasu przebiegu workera. Retry po błędach i upływ czasu odniesienia obsługuje worker w API. To nie jest harmonogram startu/końca kampanii. Szczegóły i etapy odbioru: [plan promocji](promotion-extension-plan.md).

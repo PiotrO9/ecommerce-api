@@ -11,6 +11,7 @@ namespace E_commerce_backend.Services.Pricing;
 
 public sealed class PromotionService(AppDbContext database, TimeProvider clock)
 {
+    public DynamicPromotionService Dynamic => new(database, clock);
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     private static DateTime Precise(DateTime value) => new(value.Ticks - value.Ticks % 10, DateTimeKind.Utc);
     private static PromotionResult Error(int status, string code) => new(status, new PromotionError(code, code));
@@ -19,23 +20,29 @@ public sealed class PromotionService(AppDbContext database, TimeProvider clock)
     public async Task<PromotionResult> GetAsync(Guid id, CancellationToken ct)
     {
         var p = await database.Promotions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+        if (p is not null && DynamicPromotionEngine.IsDynamic(p.Scope))
+            return new(200, await Dynamic.ResponseAsync(p, ct));
         return p is null ? Error(404, "promotion_not_found") : new(200, Snapshot(p, await MembersAsync(id, ct)));
     }
 
     public async Task<PromotionResult> ListAsync(int page, int size, string? status, Guid? productId, CancellationToken ct)
         => await ListAsync(page, size, status, productId, ct, null, null);
 
-    public async Task<PromotionResult> ListAsync(int page, int size, string? status, Guid? productId, CancellationToken ct, Guid? collectionId, string? scope)
+    public async Task<PromotionResult> ListAsync(int page, int size, string? status, Guid? productId, CancellationToken ct, Guid? collectionId, string? scope, Guid? categoryId = null)
     {
-        if (!PageValid(page, size) || status is not (null or "Draft" or "Active" or "Ended") || scope is not (null or "product" or "collection") ||
-            productId.HasValue && collectionId.HasValue || productId.HasValue && scope == "collection" || collectionId.HasValue && scope == "product") return Error(400, "invalid_query");
+        if (!PageValid(page, size) || status is not (null or "Draft" or "Active" or "Ended") || scope is not (null or "product" or "collection" or "catalog" or "category") ||
+            new[] { productId, collectionId, categoryId }.Count(id => id.HasValue) > 1 ||
+            productId.HasValue && scope is not (null or "product") || collectionId.HasValue && scope is not (null or "collection") || categoryId.HasValue && scope is not (null or "category")) return Error(400, "invalid_query");
         var query = database.Promotions.AsNoTracking().Where(p => (status == null || p.Status == status) && (!productId.HasValue || p.ProductId == productId)
-            && (!collectionId.HasValue || p.CollectionId == collectionId) && (scope == null || p.Scope == scope));
+            && (!collectionId.HasValue || p.CollectionId == collectionId) && (!categoryId.HasValue || p.CategoryId == categoryId) && (scope == null || p.Scope == scope));
         var count = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id).Skip((page - 1) * size).Take(size).ToArrayAsync(ct);
-        var ids = rows.Select(p => p.Id).ToArray();
+        var ids = rows.Where(p => !DynamicPromotionEngine.IsDynamic(p.Scope)).Select(p => p.Id).ToArray();
         var members = await MemberQuery().Where(x => ids.Contains(x.PromotionId)).ToArrayAsync(ct);
-        return new(200, new PromotionListResponse(rows.Select(p => Snapshot(p, members.Where(m => m.PromotionId == p.Id).ToArray())).ToArray(), page, size, count, (int)Math.Ceiling((double)count / size)));
+        var responses = new List<PromotionResponse>();
+        foreach (var p in rows)
+            responses.Add(DynamicPromotionEngine.IsDynamic(p.Scope) ? await Dynamic.ResponseAsync(p, ct) : Snapshot(p, members.Where(m => m.PromotionId == p.Id).ToArray()));
+        return new(200, new PromotionListResponse(responses, page, size, count, (int)Math.Ceiling((double)count / size)));
     }
 
     public async Task<PromotionResult> PreviewAsync(Guid id, int page, int size, CancellationToken ct)
@@ -45,6 +52,7 @@ public sealed class PromotionService(AppDbContext database, TimeProvider clock)
         await CatalogWriteLock.AcquireAsync(database, ct);
         var promotion = await database.Promotions.AsNoTracking().SingleOrDefaultAsync(p => p.Id == id, ct);
         if (promotion is null) return Error(404, "promotion_not_found");
+        if (DynamicPromotionEngine.IsDynamic(promotion.Scope)) return await Dynamic.PreviewAsync(promotion, page, size, ct);
         var preview = await BuildPreviewAsync(promotion, Precise(clock.GetUtcNow().UtcDateTime), ct);
         return new(200, new PromotionPreviewResponse(id, promotion.Version, preview.Errors.Count == 0 && preview.Items.Count > 0 && preview.Items.All(v => v.Errors.Count == 0),
             page, size, preview.Items.Count, preview.Errors,
@@ -55,6 +63,21 @@ public sealed class PromotionService(AppDbContext database, TimeProvider clock)
     public async Task<PromotionResult> MutateAsync(string kind, Guid id, PromotionDraftRequest? draft,
         PromotionVersionRequest? version, Guid key, Guid actor, CancellationToken ct)
     {
+        if (key == Guid.Empty || actor == Guid.Empty || kind is not ("create" or "update" or "activate" or "end" or "exclusions")) return Error(400, "invalid_request");
+        var inputVersion = draft?.ExpectedVersion ?? version?.ExpectedVersion;
+        if (kind == "create" ? inputVersion.HasValue : inputVersion is not > 0) return Error(400, "invalid_version");
+        if (kind is "create" or "update" && draft is null) return Error(400, "invalid_rule");
+        if (kind == "activate")
+        {
+            if (version is not PromotionActivationRequest activation || activation.Variants is null && activation.ExpectedScopeToken is null ||
+                activation.Variants is { } input && (input.Any(v => v is null || v.VariantId == Guid.Empty || v.ExpectedPriceChangeId == Guid.Empty) || input.Select(v => v.VariantId).Distinct().Count() != input.Count))
+                return Error(400, "invalid_variant_versions");
+        }
+        if (DynamicPromotionEngine.IsDynamic(draft?.Scope?.Trim().ToLowerInvariant()) ||
+            kind != "create" && await database.Promotions.AnyAsync(p => p.Id == id && (p.Scope == "catalog" || p.Scope == "category"), ct))
+            return await Dynamic.MutateAsync(kind, id, draft, version, key, actor, ct);
+        if (draft?.CategoryId is not null || draft?.ExcludedProductIds is not null || draft?.ExcludedVariantIds is not null ||
+            (version as PromotionActivationRequest)?.ExpectedScopeToken is not null) return Error(400, "dynamic_scope_required");
         if (key == Guid.Empty || actor == Guid.Empty || kind is not ("create" or "update" or "activate" or "end")) return Error(400, "invalid_request");
         var name = draft?.Name?.Trim();
         var type = draft?.DiscountType?.Trim().ToLowerInvariant();
@@ -161,8 +184,15 @@ public sealed class PromotionService(AppDbContext database, TimeProvider clock)
                     .SetProperty(x => x.UpdatedAt, now).SetProperty(x => x.ActivatedAt, p.ActivatedAt).SetProperty(x => x.EndedAt, p.EndedAt), ct);
             database.AddRange(additions);
             await database.SaveChangesAsync(ct);
+            await new DynamicPromotionEngine(database, clock).ReconcileAsync(ct);
             await tx.CommitAsync(ct);
             return new(operation.StatusCode, body);
+        }
+        catch (PromotionOverlapException e)
+        {
+            await tx.RollbackAsync(ct); await tx.DisposeAsync(); database.ChangeTracker.Clear();
+            await new DynamicPromotionEngine(database, clock).RecordBlockedAsync(e, ct);
+            return Error(409, "active_promotion");
         }
         finally { foreach (var entry in additions) database.Entry(entry).State = EntityState.Detached; }
     }

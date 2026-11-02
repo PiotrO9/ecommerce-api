@@ -21,8 +21,21 @@ public sealed class AdminPromotionsController(IAdministratorAccess access, Promo
     [ProducesResponseType<PromotionListResponse>(200)]
     public Task<IActionResult> List([FromQuery] int page = 1, [FromQuery] int pageSize = 20,
         [FromQuery] string? status = null, [FromQuery] Guid? productId = null, CancellationToken cancellationToken = default,
-        [FromQuery] Guid? collectionId = null, [FromQuery] string? scope = null) =>
-        Run(_ => service.ListAsync(page, pageSize, status, productId, cancellationToken, collectionId, scope), cancellationToken);
+        [FromQuery] Guid? collectionId = null, [FromQuery] string? scope = null, [FromQuery] Guid? categoryId = null) =>
+        Run(_ => service.ListAsync(page, pageSize, status, productId, cancellationToken, collectionId, scope, categoryId), cancellationToken);
+    [HttpGet("conflicts")]
+    public Task<IActionResult> Conflicts([FromQuery] Guid? promotionId = null, [FromQuery] bool includeResolved = false,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        Run(_ => service.Dynamic.ConflictsAsync(promotionId, includeResolved, page, pageSize, cancellationToken), cancellationToken);
+    [HttpGet("{id:guid}/variants")]
+    public Task<IActionResult> Variants(Guid id, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default) =>
+        Run(_ => service.Dynamic.MembersAsync(id, page, pageSize, cancellationToken), cancellationToken);
+    [HttpGet("{id:guid}/exclusions")]
+    public Task<IActionResult> Exclusions(Guid id, CancellationToken cancellationToken) => Run(_ => service.Dynamic.ExclusionsAsync(id, cancellationToken), cancellationToken);
+    [HttpPut("{id:guid}/exclusions")]
+    public Task<IActionResult> SetExclusions(Guid id, [FromBody] PromotionExclusionsRequest? request,
+        [FromHeader(Name = "Idempotency-Key")] string? key, [FromHeader(Name = "X-Requested-With")] string? csrf,
+        CancellationToken cancellationToken) => Mutate("exclusions", id, null, request, key, csrf, cancellationToken);
     [HttpGet("{id:guid}")]
     [ProducesResponseType<PromotionResponse>(200)]
     public Task<IActionResult> Get(Guid id, CancellationToken cancellationToken) => Run(_ => service.GetAsync(id, cancellationToken), cancellationToken);

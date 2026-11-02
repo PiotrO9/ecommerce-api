@@ -197,3 +197,19 @@ Komendy EF: podgląd 10 dla każdego rozmiaru; start 15/15/19, koniec 10/10/11 (
 Pojedyncza równoległa transakcja czekająca na tę samą blokadę podczas ostatniej aktywacji czekała odpowiednio 0,5 / 335,6 / 694,1 ms. To obserwacja mechanizmu serializacji, nie p95 ruchu wielu administratorów. Najmniejsza aktywacja mogła niemal skończyć się przed nadejściem drugiego żądania. Przy pięciu próbkach p95 jest maksimum; pomiar nie uzasadnia prognozy dla zdalnego Supabase.
 
 Wniosek projektowy: synchroniczna akcja 1500 wariantów jest użyteczna na tym lokalnym zbiorze, ale blokuje innych piszących przez znaczną część sekundy. Zachowano roboczy limit 3000 wariantów kolekcji; nie zmierzono czasu na jego granicy. Test PostgreSQL potwierdza odrzucenie 3001 wariantów przed kalkulacją historii i poprawny zapis maksymalnego seedera 500 produktów / 3000 wariantów. Dalsze zwiększanie limitu wymaga pomiaru, zwłaszcza na bazie z długą historią.
+
+## Dynamiczne promocje katalogu/kategorii — 02.11.2026
+
+Harness `tests/performance/dynamic-promotions/` uruchomiono na osobnym lokalnym PostgreSQL 17 i syntetycznym katalogu 5000 produktów / 15 000 wariantów. Zakończył istniejące aktywne kampanie demo i wykonał trzy cykle rabatu katalogowego 90/95/99%, z rzeczywistą historią wcześniejszych cykli. Zakres zawierał 14 997 widocznych wariantów: 14 993 otrzymało rabat, 4 trafiły do konfliktów (celowo niepoprawne dane demo). Trzy ukryte warianty pozostały poza zakresem. Nie używano Supabase ani prawdziwego Auth; czasy obejmują serwis/EF/PostgreSQL bez HTTP. To trzy próbki, nie statystyka obciążenia ani wiarygodne p95.
+
+| Cykl | Podgląd | Start | Czekanie innego piszącego | Uzgodnienie bez zmian | Koniec |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 90% | 649,8 ms | 2951,2 ms | 2866,2 ms | 608,2 ms | 1064,5 ms |
+| 95% | 413,9 ms | 2576,5 ms | 2548,4 ms | 491,5 ms | 1159,5 ms |
+| 99% | 364,9 ms | 2706,9 ms | 2684,9 ms | 577,5 ms | 1260,9 ms |
+
+Aktywacja używała 64-znakowego tokenu podglądu; serializowane body DTO miało 158 bajtów niezależnie od 15 tysięcy wariantów. Nowe scope nie dziedziczą limitu 3000 wariantów kolekcji. Nie jest to gwarancja dowolnej liczby produktów ani wyniku na zdalnej bazie.
+
+Pierwszy wariant zapisu EF całego grafu miał start 13,7–14,4 s i koniec 6,3–6,5 s. Zastąpiono go parametryzowanymi INSERT SELECT FROM unnest dla udziałów, odniesień i cen, w tej samej atomowej transakcji. Przed odbiorem skorygowano też nadmiarowe odroczone sprawdzanie konfliktów podczas dużego seedowania, gdy wszystkie nowe kampanie są Draft. Kontrole i rzeczywiste wycofanie transakcji przy błędzie commit pozostają testowane.
+
+Wniosek: ten rozmiar działa lokalnie z zapisem trwającym około 2,6–3 s. Wspólna blokada oznacza podobne oczekiwanie innych zapisów; użycie workera nie usuwa tego kosztu. Przed większym ruchem administracyjnym lub większą historią potrzebny jest osobny pomiar i ewentualne uzgadnianie tylko zmienionych wariantów. Wyniku nie ekstrapolujemy na Supabase. Surowy raport: `.local/dynamic-promotions-5f01536e/performance-final.log`; poprzednie porównanie EF/bulk w sąsiednich performance.log i performance-bulk.log.

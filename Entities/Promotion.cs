@@ -5,6 +5,7 @@ public sealed class Promotion
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? ProductId { get; set; }
     public Guid? CollectionId { get; set; }
+    public Guid? CategoryId { get; set; }
     public string Scope { get; set; } = "product";
     public required string Name { get; set; }
     public required string DiscountType { get; set; }
@@ -59,4 +60,33 @@ public sealed class PromotionOperation
     public required string ResponseJson { get; set; }
     public int StatusCode { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public sealed class PromotionExclusionRule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PromotionId { get; set; }
+    public Guid? ProductId { get; set; }
+    public Guid? VariantId { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public sealed class PromotionConflict
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PromotionId { get; set; }
+    public Guid VariantId { get; set; }
+    public Guid? OtherPromotionId { get; set; }
+    public required string Code { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+}
+
+// One durable invalidation record, serialized by CatalogWriteLock.
+public sealed class PromotionReconciliation
+{
+    public int Id { get; set; } = 1;
+    public bool Dirty { get; set; }
+    public DateTime NextAttemptAt { get; set; }
 }

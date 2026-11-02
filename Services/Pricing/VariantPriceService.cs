@@ -94,6 +94,7 @@ public sealed class VariantPriceService(AppDbContext database, TimeProvider time
         try
         {
             await database.SaveChangesAsync(cancellationToken);
+            await new DynamicPromotionEngine(database, timeProvider).ReconcileAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
         }
         finally

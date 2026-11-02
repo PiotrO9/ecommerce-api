@@ -66,6 +66,8 @@ UUID `Idempotency-Key` jest unikalny dla autora w przestrzeni komend promocji, o
 
 ## Źródła i dalsze rozszerzenia
 
+Aktualne rozszerzenie z 02.11.2026 jest w [promotion-extension-plan.md](promotion-extension-plan.md): dynamiczny katalog/kategoria, wykluczenia, konflikty i automatyczna ponowna ocena są w kodzie i odbiorze lokalnym. Stare promocje produktu/kolekcji zachowują zamrożony skład i format ponowień. Harmonogramy kampanii, wybór korzystniejszej promocji i sumowanie rabatów pozostają osobno; nowej migracji nie zastosowano w Supabase.
+
 Źródła zakresu informacji o wcześniejszej cenie, krótkiej ofercie i towarach szybko psujących się: [UOKiK](https://prawakonsumenta.uokik.gov.pl/prawo-do-informacji/informacje-o-obnizkach-cen/). Spójność wariantów i niezmienność odniesienia przy niezmienionej obniżce: [komunikat UOKiK dotyczący Zalando i Temu](https://uokik.gov.pl/obnizka-jaka-jest-kazdy-widzi-niekoniecznie-najnizsza-cena-z-30-dni-przed-obnizka-kary-dla-zalando-i-temu). Zweryfikowane 31.10.2026; powyższe reguły techniczne nie stanowią obsługi wszystkich wyjątków prawnych.
 
 Następne osobne zadania: kolekcje i zakres całego katalogu, harmonogramy, zmiana podstawy w aktywnej akcji, zasady łączenia promocji oraz cena utrwalana w koszyku/zamówieniu. Przed planowaniem i wdrożeniem sprawdzono `protected-area-check`; lista obszarów chronionych jest pusta.

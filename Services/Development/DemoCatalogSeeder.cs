@@ -23,11 +23,13 @@ public sealed record DemoSeedCreated(
     int Collections = 0,
     int CollectionProductLinks = 0,
     int CollectionOperations = 0,
-    int CatalogOperations = 0)
+    int CatalogOperations = 0,
+    int PromotionExclusions = 0,
+    int PromotionConflicts = 0)
 {
     public int Sum() => Categories + Products + Variants + AttributeKeys + AttributePairs + ProductCategoryLinks
         + VariantAttributeLinks + Stocks + PriceChanges + OfferEvents + Promotions + PromotionVariants + PriceReductions + PromotionOperations
-        + Collections + CollectionProductLinks + CollectionOperations + CatalogOperations;
+        + Collections + CollectionProductLinks + CollectionOperations + CatalogOperations + PromotionExclusions + PromotionConflicts;
 }
 
 public sealed record DemoCatalogSeedResult(int Added, DemoSeedCreated Created);
@@ -56,6 +58,9 @@ public sealed class DemoCatalogSeeder(AppDbContext database)
         // TRUNCATE omija wyzwalacz DELETE historii cen; endpoint działa tylko w Development.
         await database.Database.ExecuteSqlRawAsync("""
             TRUNCATE TABLE
+                app.promotion_conflicts,
+                app.promotion_exclusions,
+                app.promotion_reconciliation,
                 app.inventory_payment_receipts,
                 app.stock_movements,
                 app.stock_reservation_items,
@@ -157,7 +162,9 @@ public sealed class DemoCatalogSeedData
         _entities.OfType<PromotionOperation>().Count(),
         _entities.OfType<Collection>().Count(),
         _entities.OfType<CollectionProduct>().Count(),
-        _entities.OfType<CollectionOperation>().Count());
+        _entities.OfType<CollectionOperation>().Count(),
+        PromotionExclusions: _entities.OfType<PromotionExclusionRule>().Count(),
+        PromotionConflicts: _entities.OfType<PromotionConflict>().Count());
 
     public static DemoCatalogSeedData Create(DemoSeedOptions options, DateTime createdAt)
     {
@@ -276,7 +283,17 @@ public sealed class DemoCatalogSeedData
 
         data.AddCollectionScenarios(createdAt);
         data.AddPromotionScenarios(createdAt);
+        data.AddDynamicPromotionDrafts(createdAt);
         return data;
+    }
+
+    private void AddDynamicPromotionDrafts(DateTime now)
+    {
+        var catalog = Add(new Promotion { Scope = "catalog", Name = "Demo: katalog -10%", DiscountType = "percentage", DiscountValue = 10, CreatedAt = now, UpdatedAt = now });
+        Add(new Promotion { Scope = "category", CategoryId = _entities.OfType<Category>().First().Id,
+            Name = "Demo: kategoria -20 zł", DiscountType = "amount", DiscountValue = 20, CreatedAt = now, UpdatedAt = now });
+        Add(new PromotionExclusionRule { PromotionId = catalog.Id, ProductId = _products[0].Id, CreatedAt = now });
+        Add(new PromotionExclusionRule { PromotionId = catalog.Id, VariantId = _variants.First(v => v.ProductId == _products[1].Id).Id, CreatedAt = now });
     }
 
     private T Add<T>(T entity) where T : class

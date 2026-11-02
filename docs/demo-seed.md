@@ -96,7 +96,7 @@ Przykładowa odpowiedź dla jednego z możliwych losowań domyślnych poziomów 
 
 ```json
 {
-  "added": 2089,
+  "added": 2093,
   "created": {
     "categories": 25,
     "products": 200,
@@ -108,14 +108,16 @@ Przykładowa odpowiedź dla jednego z możliwych losowań domyślnych poziomów 
     "stocks": 201,
     "priceChanges": 212,
     "offerEvents": 602,
-    "promotions": 5,
+    "promotions": 7,
     "promotionVariants": 7,
     "priceReductions": 7,
     "promotionOperations": 7,
     "collections": 6,
     "collectionProductLinks": 10,
     "collectionOperations": 0,
-    "catalogOperations": 0
+    "catalogOperations": 0,
+    "promotionExclusions": 2,
+    "promotionConflicts": 0
   }
 }
 ```
@@ -129,3 +131,9 @@ dotnet user-secrets set "DemoSeed:Enabled" "false"
 ## Weryfikacja i otwarte kwestie
 
 Testy jednostkowe sprawdzają klucz, opcje oraz kompletność i spójność grafu danych dla zestawu bazowego i największego (500 produktów, po 6 wariantów). Test integracyjny wyszukiwania uruchamia seeder na odizolowanym PostgreSQL; warunki uruchomienia są w [testing.md](testing.md). Nie ma jeszcze pomiaru czasu zapisu największego zestawu do bazy. Przed użyciem na bazie z danymi trzeba sprawdzić docelowe połączenie i zakres czyszczonych tabel.
+
+## Aktualizacja promocji dynamicznych — 02.11.2026
+
+Aktualny reset ma 29 tabel: wcześniejsze 26 oraz promotion_conflicts, promotion_exclusions, promotion_reconciliation. Nadal odmawia przy jakimkolwiek zamówieniu. Zachowuje konta i stany właścicieli. ANALYZE obejmuje dotychczasowe 20 tabel; trzy nowe małe tabele nie są częścią tego wykazu.
+
+Dodano dwa szkice promocji (catalog procentowy i category kwotowy) oraz dwa wykluczenia: produkt i wariant. Nie są automatycznie aktywowane, ponieważ mieszany katalog zawiera celowe przeszkody. `created` ma 20 liczników, w tym promotionExclusions oraz promotionConflicts (0 przed faktyczną oceną). Wewnętrzny znacznik uzgodnienia nie ma licznika. Suma pól nadal wynosi added. Przykład wyżej zaktualizowano dla 25 kategorii / 200 produktów / jednego wariantu. Starsze opisy 18 liczników i 20/26 tabel dotyczą wcześniejszych wydań.

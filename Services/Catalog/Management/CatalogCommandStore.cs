@@ -43,8 +43,15 @@ public sealed class CatalogCommandStore(AppDbContext db, TimeProvider clock)
                 Reason = result.Reason, QuantityBefore = result.QuantityBefore, QuantityAfter = result.QuantityAfter
             });
             await db.SaveChangesAsync(ct);
+            await new DynamicPromotionEngine(db, clock).ReconcileAsync(ct);
             await tx.CommitAsync(ct); // Deferred graph/publication constraints also fail here.
             return new(result.Status, result.Status == 204 ? null : result.Response);
+        }
+        catch (PromotionOverlapException e)
+        {
+            await tx.RollbackAsync(ct); await tx.DisposeAsync(); db.ChangeTracker.Clear();
+            await new DynamicPromotionEngine(db, clock).RecordBlockedAsync(e, ct);
+            return new(409, new CatalogError("active_promotion", "Zmiana powoduje konflikt promocji. Sprawdź panel konfliktów."));
         }
         catch (DbUpdateConcurrencyException) { return new(409, new CatalogError("version_conflict", "Dane zostały zmienione. Odczytaj aktualną wersję.")); }
         catch (DbUpdateException e) when (e.InnerException is PostgresException p && IsRule(p)) { return Rule((PostgresException)e.InnerException!); }
@@ -67,6 +74,7 @@ public sealed class CatalogCommandStore(AppDbContext db, TimeProvider clock)
             "catalog_variant_identity" => "variant_configuration_locked",
             "catalog_pair_identity" => "attribute_pair_immutable",
             "catalog_key_identity" => "attribute_code_immutable",
+            "dynamic_promotion_overlap" => "active_promotion",
             _ => e.SqlState == "23505" ? "unique_value_conflict" : e.SqlState == "23503" ? "resource_in_use" : "catalog_rule_conflict"
         };
         return new(409, new CatalogError(code, "Zmiana narusza reguły katalogu lub jest nieaktualna."));

@@ -4,6 +4,8 @@ Cel: zapewnić, że rozwój modelu danych aplikacji jest uwzględniany w ręczni
 
 ## Stan obecny
 
+Rozszerzenie promocji 02.11.2026: reset obejmuje dodatkowo `promotion_conflicts`, `promotion_exclusions`, `promotion_reconciliation` — 29 tabel łącznie. Dwa nowe szkice (katalog/kategoria) i dwa wykluczenia są danymi demo. `created` ma 20 liczników, w tym `promotionExclusions` i `promotionConflicts` (0 przed rzeczywistą oceną). Wewnętrzny znacznik uzgodnienia nie jest danymi demo i nie ma licznika. Nie fabrykujemy automatycznych operacji ani konfliktów. Poniższe opisy 20/26 tabel i 18 liczników zachowują historię wcześniejszych modułów; aktualna lista jest w `DemoCatalogSeeder`.
+
 Magazyn (01.11.2026): seeder przed zmianami odrzuca reset przy jakimkolwiek zamówieniu (`409 seed_blocked_by_orders`). Historia zakupów nie jest danymi do czyszczenia tym endpointem. Jawny TRUNCATE zawiera też sześć pustych tabel: `orders`, `order_items`, `stock_reservations`, `stock_reservation_items`, `stock_movements`, `inventory_payment_receipts` — łącznie 26 tabel. PostgreSQL wymaga tego przy FK nawet dla pustych tabel; nie ma `CASCADE`.
 
 Wyjątek od seedowania: zamówienia, rezerwacje i płatności należą do klientów. Przygotowują je izolowane fixture magazynu i żądania API po zalogowaniu; seeder nie tworzy kont Auth. `created` zachowuje 18 liczników katalogu. Test potwierdza odrzucenie resetu bez zmiany stanu i historii. Poniższe 20 tabel to właściwy reset katalogu/shopping; dodatkowe sześć musi być puste.

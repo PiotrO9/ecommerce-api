@@ -12,8 +12,8 @@ public sealed class DemoCatalogSeedDataTests
     {
         var data = DemoCatalogSeedData.Create(new DemoSeedOptions(new(3, 3), new(2, 2), new(1, 1)), Now);
 
-        Assert.Equal(37, data.Entities.Count);
-        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4, OfferEvents: 3, Collections: 4, CollectionProductLinks: 3), data.Created);
+        Assert.Equal(41, data.Entities.Count);
+        Assert.Equal(new DemoSeedCreated(3, 2, 3, 2, 4, 2, 4, 3, 4, OfferEvents: 3, Promotions: 2, Collections: 4, CollectionProductLinks: 3, PromotionExclusions: 2), data.Created);
         Assert.All(data.Entities.OfType<VariantPriceChange>(), price =>
         {
             Assert.Null(price.OperationKey);
@@ -37,7 +37,7 @@ public sealed class DemoCatalogSeedDataTests
         Assert.Equal(3000, data.Created.Variants);
         Assert.Equal(3000, data.Created.Stocks);
         Assert.Equal(3061, data.Created.PriceChanges);
-        Assert.Equal(5, data.Created.Promotions);
+        Assert.Equal(7, data.Created.Promotions);
         Assert.Equal(42, data.Created.PriceReductions);
         Assert.Equal(6, data.Created.Collections);
         Assert.Equal(10, data.Created.CollectionProductLinks);
